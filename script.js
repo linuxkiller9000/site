@@ -13,9 +13,10 @@ class PrayerTimesApp {
         this.qiblaBearing = 0; // Store Qibla direction for compass
         this.deviceHeading = 0; // Current device heading from compass
         this.baseDeviceHeading = 0; // Raw heading from sensor/scroll progress
-        this.manualHeadingOffset = 0; // User adjustment via wheel/touch in hybrid mode
+        this.manualHeadingOffset = 0; // Kept for debug compatibility; not used in real compass mode
         this.magneticDeclination = 0; // Degrees to convert magnetic north -> true north
         this.declinationSource = 'Fallback';
+        this.lastSensorHeading = null;
         this.isCompassTrackingActive = false;
         this.hasAbsoluteOrientation = false;
         this.hasReceivedCompassReading = false;
@@ -291,9 +292,26 @@ class PrayerTimesApp {
             // Android: No permission needed, start immediately
             console.log('Android detected - starting compass tracking without permission');
             this.startCompassTracking();
+            this.setupAndroidCompassBootstrap();
         } else {
             console.warn('Device Orientation API not supported on this device');
         }
+    }
+
+    setupAndroidCompassBootstrap() {
+        if (this.platformType !== 'android') return;
+
+        const retryStart = () => {
+            if (!this.isCompassTrackingActive) {
+                this.startCompassTracking();
+            }
+        };
+
+        document.addEventListener('touchstart', retryStart, { once: true, passive: true });
+        document.addEventListener('click', retryStart, { once: true, passive: true });
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible') retryStart();
+        });
     }
 
     detectPlatformType() {
@@ -352,17 +370,9 @@ class PrayerTimesApp {
         const qiblaSection = document.getElementById('qibla-section');
         if (!qiblaSection) return;
 
-        const applyManualScrollDelta = (delta) => {
-            this.isScrollCompassActive = true;
-            if (this.hasReceivedCompassReading) {
-                this.manualHeadingOffset = this.normalizeDegrees(this.manualHeadingOffset + delta);
-            } else {
-                this.baseDeviceHeading = this.normalizeDegrees(this.baseDeviceHeading + delta);
-            }
-            this.updateCompassNeedle();
-        };
-
         const updateFromScroll = () => {
+            // Keep scroll-only fallback for desktop/Linux without sensors.
+            if (this.platformType !== 'linux-desktop') return;
             if (this.hasReceivedCompassReading) return;
 
             const viewportHeight = window.innerHeight || 1;
@@ -374,33 +384,6 @@ class PrayerTimesApp {
             this.baseDeviceHeading = clampedProgress * 360;
             this.updateCompassNeedle();
         };
-
-        // Desktop/Linux: wheel directly over the Qibla section rotates the needle immediately.
-        qiblaSection.addEventListener('wheel', (event) => {
-            event.preventDefault();
-            applyManualScrollDelta(event.deltaY * 0.35);
-        }, { passive: false });
-
-        // Mobile/trackpad: drag up/down inside the section to rotate when sensor is unavailable.
-        let lastTouchY = null;
-        qiblaSection.addEventListener('touchstart', (event) => {
-            if (event.touches.length > 0) {
-                lastTouchY = event.touches[0].clientY;
-            }
-        }, { passive: true });
-
-        qiblaSection.addEventListener('touchmove', (event) => {
-            if (event.touches.length === 0 || lastTouchY === null) return;
-            const currentY = event.touches[0].clientY;
-            const deltaY = lastTouchY - currentY;
-            lastTouchY = currentY;
-            event.preventDefault();
-            applyManualScrollDelta(deltaY * 0.8);
-        }, { passive: false });
-
-        qiblaSection.addEventListener('touchend', () => {
-            lastTouchY = null;
-        }, { passive: true });
 
         window.addEventListener('scroll', updateFromScroll, { passive: true });
         window.addEventListener('resize', updateFromScroll, { passive: true });
@@ -462,7 +445,9 @@ class PrayerTimesApp {
     getDeviceHeadingFromEvent(event) {
         // iOS-specific heading
         if (event.webkitCompassHeading !== undefined && event.webkitCompassHeading !== null) {
-            return this.normalizeDegrees(event.webkitCompassHeading);
+            const iosHeading = this.normalizeDegrees(event.webkitCompassHeading);
+            this.lastSensorHeading = iosHeading;
+            return iosHeading;
         }
 
         // If alpha is unavailable, we cannot determine heading
@@ -470,14 +455,28 @@ class PrayerTimesApp {
             return null;
         }
 
-        // For most browsers:
-        // - absolute alpha is already north-referenced
-        // - non-absolute alpha is usually mirrored and needs inversion
+        // Build both common candidates for non-iOS browsers.
+        // Different Android devices/browsers report alpha differently.
         const alpha = this.normalizeDegrees(event.alpha);
-        const baseHeading = event.absolute ? alpha : (360 - alpha);
         const screenAngle = this.getScreenOrientationAngle();
+        const candidateA = this.normalizeDegrees(alpha + screenAngle);
+        const candidateB = this.normalizeDegrees((360 - alpha) + screenAngle);
 
-        return this.normalizeDegrees(baseHeading + screenAngle);
+        let heading;
+        if (event.absolute) {
+            heading = candidateA;
+        } else if (this.lastSensorHeading === null) {
+            // Conservative first pick for relative Android readings.
+            heading = candidateB;
+        } else {
+            // Pick the candidate that is closest to previous heading to reduce flips.
+            const deltaA = Math.abs(this.shortestAngleDelta(this.lastSensorHeading, candidateA));
+            const deltaB = Math.abs(this.shortestAngleDelta(this.lastSensorHeading, candidateB));
+            heading = deltaA <= deltaB ? candidateA : candidateB;
+        }
+
+        this.lastSensorHeading = heading;
+        return heading;
     }
 
     // Update needle rotation based on device heading and Qibla bearing
@@ -486,9 +485,7 @@ class PrayerTimesApp {
         const compassCircle = document.getElementById('qibla-compass-circle');
         if (!needle) return;
 
-        const magneticHeading = this.hasReceivedCompassReading
-            ? this.normalizeDegrees(this.baseDeviceHeading + this.manualHeadingOffset)
-            : this.baseDeviceHeading;
+        const magneticHeading = this.baseDeviceHeading;
         const activeHeading = this.normalizeDegrees(magneticHeading + this.magneticDeclination);
         this.deviceHeading = activeHeading;
 
@@ -513,23 +510,21 @@ class PrayerTimesApp {
         const debugHeading = document.getElementById('debug-heading');
         const debugBearing = document.getElementById('debug-bearing');
         const debugMode = document.getElementById('debug-mode');
-        const debugOffset = document.getElementById('debug-offset');
         const debugError = document.getElementById('debug-error');
         const debugDeclination = document.getElementById('debug-declination');
         const debugDeclinationSource = document.getElementById('debug-declination-source');
         if (debugHeading) debugHeading.textContent = `${Math.round(this.deviceHeading)}°`;
         if (debugBearing) debugBearing.textContent = `${Math.round(this.qiblaBearing)}°`;
-        if (debugOffset) debugOffset.textContent = `${Math.round(this.manualHeadingOffset)}°`;
         if (debugError) debugError.textContent = `${Math.round(this.headingError)}°`;
         if (debugDeclination) debugDeclination.textContent = `${this.magneticDeclination.toFixed(1)}°`;
         if (debugDeclinationSource) debugDeclinationSource.textContent = this.declinationSource;
         if (debugMode) {
             if (this.hasReceivedCompassReading) {
-                debugMode.textContent = 'Hybrid (Compass + Scroll Lock)';
+                debugMode.textContent = 'Real Compass';
             } else if (this.platformType === 'linux-desktop') {
                 debugMode.textContent = 'Scroll Lock (Linux)';
             } else {
-                debugMode.textContent = 'Scroll Lock';
+                debugMode.textContent = 'Waiting For Sensors';
             }
         }
 

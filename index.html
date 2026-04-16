@@ -515,7 +515,7 @@
                     <div class="bg-emerald-500/10 border border-emerald-500/30 rounded-2xl p-4">
                         <p class="text-sm text-emerald-300 font-arabic flex items-start">
                             <i class="fas fa-info-circle mr-3 mt-0.5 flex-shrink-0"></i>
-                            <span><strong>How to use:</strong> Hybrid mode is enabled. Rotate your phone and the compass rotates with you. We also apply True North correction using API declination data, then you can fine-tune with wheel/drag inside this card.</span>
+                            <span><strong>How to use:</strong> Real compass mode is enabled. Rotate your phone and the compass rotates with you. True North correction is applied using API declination data.</span>
                         </p>
                     </div>
 
@@ -527,14 +527,13 @@
 
                     <!-- Debug Info (Android Compass) -->
                     <div class="bg-slate-800/50 border border-slate-700/50 rounded-xl p-3 mt-4 text-xs text-slate-500 font-mono">
-                        <p>⚙️ Mode: <span id="debug-mode">Hybrid + Scroll Lock</span></p>
+                        <p>⚙️ Mode: <span id="debug-mode">Real Compass</span></p>
                         <p>📡 Device Heading: <span id="debug-heading">--°</span></p>
                         <p>🧭 Qibla Bearing: <span id="debug-bearing">--°</span></p>
                         <p>🎯 Qibla Error: <span id="debug-error">--°</span></p>
                         <p>🧲 Declination: <span id="debug-declination">0.0°</span></p>
                         <p>🌐 Declination API: <span id="debug-declination-source">Loading...</span></p>
-                        <p>🎛️ Scroll Offset: <span id="debug-offset">0°</span></p>
-                        <p class="text-slate-600 text-10px mt-2">Wheel/drag on this card adjusts heading and prevents page scroll.</p>
+                        <p class="text-slate-600 text-10px mt-2">Android compass needs HTTPS and motion sensors enabled.</p>
                     </div>
                 </div>
             </div>
