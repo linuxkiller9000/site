@@ -18,6 +18,13 @@ class PrayerTimesApp {
         this.declinationSource = 'Fallback';
         this.lastSensorHeading = null;
         this.lastAbsoluteEventAt = 0;
+        this.compassBackendUrl = (typeof window !== 'undefined' && window.COMPASS_BACKEND_URL)
+            ? window.COMPASS_BACKEND_URL
+            : '/api/compass';
+        this.isBackendCompassEnabled = true;
+        this.isBackendSyncInFlight = false;
+        this.lastBackendSyncAt = 0;
+        this.backendSyncIntervalMs = 300;
         this.isCompassTrackingActive = false;
         this.hasAbsoluteOrientation = false;
         this.hasReceivedCompassReading = false;
@@ -355,6 +362,7 @@ class PrayerTimesApp {
                 this.hasReceivedCompassReading = true;
                 this.isScrollCompassActive = false;
                 this.baseDeviceHeading = heading;
+                this.syncCompassWithBackend();
                 this.updateCompassNeedle();
             }
         }, { passive: true });
@@ -369,6 +377,7 @@ class PrayerTimesApp {
                 this.hasReceivedCompassReading = true;
                 this.isScrollCompassActive = false;
                 this.baseDeviceHeading = heading;
+                this.syncCompassWithBackend();
                 this.updateCompassNeedle();
             }
         }, { passive: true });
@@ -446,6 +455,49 @@ class PrayerTimesApp {
         }
 
         this.updateCompassNeedle();
+    }
+
+    async syncCompassWithBackend(force = false) {
+        if (!this.isBackendCompassEnabled || this.isBackendSyncInFlight) return;
+        if (!this.currentLocation || typeof this.currentLocation.lat !== 'number' || typeof this.currentLocation.lng !== 'number') return;
+
+        const now = Date.now();
+        if (!force && (now - this.lastBackendSyncAt) < this.backendSyncIntervalMs) return;
+
+        this.isBackendSyncInFlight = true;
+        this.lastBackendSyncAt = now;
+
+        try {
+            const url = new URL(this.compassBackendUrl, window.location.href);
+            url.searchParams.set('lat', String(this.currentLocation.lat));
+            url.searchParams.set('lng', String(this.currentLocation.lng));
+            url.searchParams.set('heading', String(this.baseDeviceHeading));
+
+            const response = await fetch(url.toString());
+            if (!response.ok) throw new Error(`Compass backend failed: ${response.status}`);
+
+            const payload = await response.json();
+            if (!payload?.ok || !payload?.data) throw new Error('Invalid compass backend payload');
+
+            const data = payload.data;
+            if (typeof data.qibla_bearing === 'number') {
+                this.qiblaBearing = this.normalizeDegrees(data.qibla_bearing);
+            }
+            if (typeof data.declination === 'number') {
+                this.magneticDeclination = data.declination;
+            }
+            if (typeof data.declination_source === 'string') {
+                this.declinationSource = `${data.declination_source} (Python)`;
+            } else {
+                this.declinationSource = 'Python Compass Backend';
+            }
+        } catch (error) {
+            console.warn('Python compass backend unavailable, using local fallback:', error);
+            this.isBackendCompassEnabled = false;
+            this.updateMagneticDeclination();
+        } finally {
+            this.isBackendSyncInFlight = false;
+        }
     }
 
     // Convert device orientation event data into a compass heading in degrees
@@ -632,7 +684,7 @@ class PrayerTimesApp {
 
         // Update the UI with the calculated bearing
         this.updateQiblaDisplay(bearing);
-        this.updateMagneticDeclination();
+        this.syncCompassWithBackend(true);
     }
 
     updateQiblaDisplay(bearing) {

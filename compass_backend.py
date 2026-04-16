@@ -26,6 +26,160 @@ from typing import Any, Dict, Optional, Tuple
 
 KAABA_LAT = 21.4225
 KAABA_LNG = 39.8262
+TEST_UI_HTML = """<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Compass Backend Test UI</title>
+  <style>
+    body { font-family: sans-serif; margin: 24px; background: #0b1220; color: #e5e7eb; }
+    .card { max-width: 760px; margin: 0 auto; background: #111827; border: 1px solid #1f2937; border-radius: 12px; padding: 16px; }
+    h1 { margin-top: 0; font-size: 22px; }
+    .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+    label { display: block; font-size: 13px; margin-bottom: 4px; color: #9ca3af; }
+    input, button { width: 100%; box-sizing: border-box; border-radius: 8px; border: 1px solid #374151; background: #0f172a; color: #e5e7eb; padding: 10px; }
+    button { background: #065f46; border-color: #047857; cursor: pointer; }
+    button.secondary { background: #1f2937; border-color: #374151; }
+    .row { margin-top: 12px; }
+    pre { background: #0f172a; border: 1px solid #1f2937; border-radius: 8px; padding: 12px; overflow: auto; }
+    .muted { color: #9ca3af; font-size: 12px; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <h1>Compass Backend Test UI</h1>
+    <p class="muted">This page calls <code>/api/compass</code> on the same server.</p>
+
+    <div class="grid">
+      <div>
+        <label for="lat">Latitude</label>
+        <input id="lat" type="number" step="0.000001" value="30.0444" />
+      </div>
+      <div>
+        <label for="lng">Longitude</label>
+        <input id="lng" type="number" step="0.000001" value="31.2357" />
+      </div>
+      <div>
+        <label for="heading">Heading (deg)</label>
+        <input id="heading" type="number" step="0.1" value="0" />
+      </div>
+      <div>
+        <label>&nbsp;</label>
+        <button id="computeBtn">Compute</button>
+      </div>
+    </div>
+
+    <div class="row grid">
+      <div>
+        <button id="sensorBtn" class="secondary">Use Device Heading</button>
+      </div>
+      <div>
+        <button id="stopBtn" class="secondary">Stop Sensor</button>
+      </div>
+    </div>
+
+    <div class="row">
+      <p class="muted">Sensor status: <span id="sensorStatus">idle</span></p>
+      <pre id="output">No response yet.</pre>
+    </div>
+  </div>
+
+  <script>
+    const latEl = document.getElementById("lat");
+    const lngEl = document.getElementById("lng");
+    const headingEl = document.getElementById("heading");
+    const outputEl = document.getElementById("output");
+    const sensorStatusEl = document.getElementById("sensorStatus");
+    const computeBtn = document.getElementById("computeBtn");
+    const sensorBtn = document.getElementById("sensorBtn");
+    const stopBtn = document.getElementById("stopBtn");
+
+    let sensorActive = false;
+    let lastHeading = null;
+    let throttleTs = 0;
+
+    function normalizeDegrees(x) {
+      return ((x % 360) + 360) % 360;
+    }
+
+    function sensorHeadingFromEvent(event) {
+      if (event.webkitCompassHeading !== undefined && event.webkitCompassHeading !== null) {
+        return normalizeDegrees(event.webkitCompassHeading);
+      }
+      if (event.alpha === null || event.alpha === undefined) return null;
+      return normalizeDegrees(360 - event.alpha);
+    }
+
+    async function compute() {
+      const lat = Number(latEl.value);
+      const lng = Number(lngEl.value);
+      const heading = Number(headingEl.value);
+
+      const url = new URL("/api/compass", window.location.origin);
+      url.searchParams.set("lat", String(lat));
+      url.searchParams.set("lng", String(lng));
+      url.searchParams.set("heading", String(heading));
+
+      try {
+        const res = await fetch(url.toString());
+        const data = await res.json();
+        outputEl.textContent = JSON.stringify(data, null, 2);
+      } catch (e) {
+        outputEl.textContent = "Request failed: " + String(e);
+      }
+    }
+
+    function onDeviceOrientation(event) {
+      if (!sensorActive) return;
+      const h = sensorHeadingFromEvent(event);
+      if (h === null) return;
+      lastHeading = h;
+      headingEl.value = h.toFixed(1);
+      sensorStatusEl.textContent = "active (" + h.toFixed(1) + "°)";
+
+      const now = Date.now();
+      if (now - throttleTs > 300) {
+        throttleTs = now;
+        compute();
+      }
+    }
+
+    async function startSensor() {
+      try {
+        if (typeof DeviceOrientationEvent !== "undefined" &&
+            typeof DeviceOrientationEvent.requestPermission === "function") {
+          const p = await DeviceOrientationEvent.requestPermission();
+          if (p !== "granted") {
+            sensorStatusEl.textContent = "permission denied";
+            return;
+          }
+        }
+
+        sensorActive = true;
+        sensorStatusEl.textContent = "active (waiting for events)";
+        window.addEventListener("deviceorientationabsolute", onDeviceOrientation, { passive: true });
+        window.addEventListener("deviceorientation", onDeviceOrientation, { passive: true });
+      } catch (e) {
+        sensorStatusEl.textContent = "error: " + String(e);
+      }
+    }
+
+    function stopSensor() {
+      sensorActive = false;
+      sensorStatusEl.textContent = lastHeading === null ? "stopped" : ("stopped (last " + lastHeading.toFixed(1) + "°)");
+      window.removeEventListener("deviceorientationabsolute", onDeviceOrientation);
+      window.removeEventListener("deviceorientation", onDeviceOrientation);
+    }
+
+    computeBtn.addEventListener("click", compute);
+    sensorBtn.addEventListener("click", startSensor);
+    stopBtn.addEventListener("click", stopSensor);
+    compute();
+  </script>
+</body>
+</html>
+"""
 
 
 def normalize_degrees(angle: float) -> float:
@@ -121,6 +275,14 @@ class CompassHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(raw)
 
+    def _html(self, status: int, html: str) -> None:
+        raw = html.encode("utf-8")
+        self.send_response(status)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Length", str(len(raw)))
+        self.end_headers()
+        self.wfile.write(raw)
+
     def _bad_request(self, message: str) -> None:
         self._json(400, {"ok": False, "error": message})
 
@@ -143,6 +305,9 @@ class CompassHandler(BaseHTTPRequestHandler):
 
     def do_GET(self) -> None:  # noqa: N802
         parsed = urllib.parse.urlparse(self.path)
+        if parsed.path in ("/", "/test"):
+            self._html(200, TEST_UI_HTML)
+            return
         if parsed.path == "/health":
             self._json(200, {"ok": True, "service": "compass-backend"})
             return
@@ -189,4 +354,3 @@ def main() -> None:
 
 if __name__ == "__main__":
     main()
-
