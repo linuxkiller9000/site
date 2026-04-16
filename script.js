@@ -12,6 +12,14 @@ class PrayerTimesApp {
         this.deferredPrompt = null; // For PWA install
         this.qiblaBearing = 0; // Store Qibla direction for compass
         this.deviceHeading = 0; // Current device heading from compass
+        this.baseDeviceHeading = 0; // Raw heading from sensor/scroll progress
+        this.manualHeadingOffset = 0; // User adjustment via wheel/touch in hybrid mode
+        this.isCompassTrackingActive = false;
+        this.hasAbsoluteOrientation = false;
+        this.hasReceivedCompassReading = false;
+        this.isScrollCompassActive = false;
+        this.platformType = this.detectPlatformType();
+        this.lastNeedleRotation = null;
         this.settings = {
             timeFormat: localStorage.getItem('timeFormat') || '12',
             calculationMethod: localStorage.getItem('calculationMethod') || '5',
@@ -250,10 +258,16 @@ class PrayerTimesApp {
         // Device Orientation Listener for Qibla Compass
         // Updates needle rotation as user rotates their phone
         this.setupDeviceOrientation();
+        this.setupScrollBasedCompass();
     }
 
     // Setup device orientation detection for dynamic Qibla compass
     setupDeviceOrientation() {
+        if (this.platformType === 'linux-desktop') {
+            console.log('Linux desktop detected - using scroll compass mode');
+            return;
+        }
+
         // Check for iOS 13+ which requires explicit permission
         if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
             // iOS 13+: requires user permission
@@ -278,37 +292,140 @@ class PrayerTimesApp {
         }
     }
 
+    detectPlatformType() {
+        const ua = navigator.userAgent || '';
+        const uaDataPlatform = navigator.userAgentData?.platform || '';
+        const platform = navigator.platform || '';
+        const combined = `${ua} ${uaDataPlatform} ${platform}`.toLowerCase();
+
+        const isAndroid = combined.includes('android');
+        const isIOS = /iphone|ipad|ipod/.test(combined);
+        const isLinux = combined.includes('linux');
+        const isMobile = /mobile|mobi|iphone|ipad|ipod|android/.test(combined);
+
+        if (isIOS) return 'ios';
+        if (isAndroid) return 'android';
+        if (isLinux && !isMobile) return 'linux-desktop';
+        return 'other';
+    }
+
     // Start listening to device orientation changes
     startCompassTracking() {
-        if (typeof DeviceOrientationEvent === 'undefined') return;
+        if (typeof DeviceOrientationEvent === 'undefined' || this.isCompassTrackingActive) return;
 
+        this.isCompassTrackingActive = true;
         console.log('Compass tracking started');
 
         // Android primary event: deviceorientationabsolute
         // Provides orientation relative to Earth's coordinate frame
         window.addEventListener('deviceorientationabsolute', (event) => {
+            this.hasAbsoluteOrientation = true;
             const heading = this.getDeviceHeadingFromEvent(event);
             if (heading !== null) {
-                this.deviceHeading = heading;
+                this.hasReceivedCompassReading = true;
+                this.isScrollCompassActive = false;
+                this.baseDeviceHeading = heading;
                 this.updateCompassNeedle();
             }
         }, { passive: true });
 
         // Fallback: deviceorientation
         window.addEventListener('deviceorientation', (event) => {
+            // Ignore fallback updates when absolute heading is available
+            if (this.hasAbsoluteOrientation) return;
+
             const heading = this.getDeviceHeadingFromEvent(event);
             if (heading !== null) {
-                this.deviceHeading = heading;
+                this.hasReceivedCompassReading = true;
+                this.isScrollCompassActive = false;
+                this.baseDeviceHeading = heading;
                 this.updateCompassNeedle();
             }
         }, { passive: true });
+    }
+
+    setupScrollBasedCompass() {
+        const qiblaSection = document.getElementById('qibla-section');
+        if (!qiblaSection) return;
+
+        const applyManualScrollDelta = (delta) => {
+            this.isScrollCompassActive = true;
+            if (this.hasReceivedCompassReading) {
+                this.manualHeadingOffset = this.normalizeDegrees(this.manualHeadingOffset + delta);
+            } else {
+                this.baseDeviceHeading = this.normalizeDegrees(this.baseDeviceHeading + delta);
+            }
+            this.updateCompassNeedle();
+        };
+
+        const updateFromScroll = () => {
+            if (this.hasReceivedCompassReading) return;
+
+            const viewportHeight = window.innerHeight || 1;
+            const rect = qiblaSection.getBoundingClientRect();
+            const progress = (viewportHeight - rect.top) / (viewportHeight + rect.height);
+            const clampedProgress = Math.max(0, Math.min(1, progress));
+
+            this.isScrollCompassActive = true;
+            this.baseDeviceHeading = clampedProgress * 360;
+            this.updateCompassNeedle();
+        };
+
+        // Desktop/Linux: wheel directly over the Qibla section rotates the needle immediately.
+        qiblaSection.addEventListener('wheel', (event) => {
+            event.preventDefault();
+            applyManualScrollDelta(event.deltaY * 0.35);
+        }, { passive: false });
+
+        // Mobile/trackpad: drag up/down inside the section to rotate when sensor is unavailable.
+        let lastTouchY = null;
+        qiblaSection.addEventListener('touchstart', (event) => {
+            if (event.touches.length > 0) {
+                lastTouchY = event.touches[0].clientY;
+            }
+        }, { passive: true });
+
+        qiblaSection.addEventListener('touchmove', (event) => {
+            if (event.touches.length === 0 || lastTouchY === null) return;
+            const currentY = event.touches[0].clientY;
+            const deltaY = lastTouchY - currentY;
+            lastTouchY = currentY;
+            event.preventDefault();
+            applyManualScrollDelta(deltaY * 0.8);
+        }, { passive: false });
+
+        qiblaSection.addEventListener('touchend', () => {
+            lastTouchY = null;
+        }, { passive: true });
+
+        window.addEventListener('scroll', updateFromScroll, { passive: true });
+        window.addEventListener('resize', updateFromScroll, { passive: true });
+        updateFromScroll();
+    }
+
+    normalizeDegrees(angle) {
+        return ((angle % 360) + 360) % 360;
+    }
+
+    getScreenOrientationAngle() {
+        if (window.screen?.orientation && typeof window.screen.orientation.angle === 'number') {
+            return this.normalizeDegrees(window.screen.orientation.angle);
+        }
+        if (typeof window.orientation === 'number') {
+            return this.normalizeDegrees(window.orientation);
+        }
+        return 0;
+    }
+
+    shortestAngleDelta(from, to) {
+        return ((to - from + 540) % 360) - 180;
     }
 
     // Convert device orientation event data into a compass heading in degrees
     getDeviceHeadingFromEvent(event) {
         // iOS-specific heading
         if (event.webkitCompassHeading !== undefined && event.webkitCompassHeading !== null) {
-            return event.webkitCompassHeading;
+            return this.normalizeDegrees(event.webkitCompassHeading);
         }
 
         // If alpha is unavailable, we cannot determine heading
@@ -316,21 +433,14 @@ class PrayerTimesApp {
             return null;
         }
 
-        // Android / generic heading handling.
-        // event.alpha is the rotation around the z axis. For many browsers,
-        // it represents the device heading when combined with screen orientation.
-        const screenAngle = (screen.orientation && screen.orientation.angle) || window.orientation || 0;
-        let heading = event.alpha;
+        // For most browsers:
+        // - absolute alpha is already north-referenced
+        // - non-absolute alpha is usually mirrored and needs inversion
+        const alpha = this.normalizeDegrees(event.alpha);
+        const baseHeading = event.absolute ? alpha : (360 - alpha);
+        const screenAngle = this.getScreenOrientationAngle();
 
-        // If the event is absolute, some browsers report alpha relative to north.
-        // Otherwise, we adjust with the screen orientation.
-        if (event.absolute) {
-            heading = 360 - heading;
-        }
-
-        heading = heading + screenAngle;
-        heading = (heading + 360) % 360;
-        return heading;
+        return this.normalizeDegrees(baseHeading + screenAngle);
     }
 
     // Update needle rotation based on device heading and Qibla bearing
@@ -338,17 +448,41 @@ class PrayerTimesApp {
         const needle = document.getElementById('qibla-needle');
         if (!needle) return;
 
+        const activeHeading = this.hasReceivedCompassReading
+            ? this.normalizeDegrees(this.baseDeviceHeading + this.manualHeadingOffset)
+            : this.baseDeviceHeading;
+        this.deviceHeading = activeHeading;
+
         // Calculate needle rotation:
         // The needle should point toward Qibla relative to magnetic north.
-        const needleRotation = this.qiblaBearing - this.deviceHeading;
+        const targetRotation = this.normalizeDegrees(this.qiblaBearing - activeHeading);
+
+        // Rotate using the shortest path to avoid big jumps near 0/360.
+        if (this.lastNeedleRotation === null) {
+            this.lastNeedleRotation = targetRotation;
+        } else {
+            this.lastNeedleRotation += this.shortestAngleDelta(this.lastNeedleRotation, targetRotation);
+        }
 
         needle.style.transition = 'transform 0.15s ease-out';
-        needle.style.transform = `rotate(${needleRotation}deg)`;
+        needle.style.transform = `rotate(${this.lastNeedleRotation}deg)`;
 
         const debugHeading = document.getElementById('debug-heading');
         const debugBearing = document.getElementById('debug-bearing');
+        const debugMode = document.getElementById('debug-mode');
+        const debugOffset = document.getElementById('debug-offset');
         if (debugHeading) debugHeading.textContent = `${Math.round(this.deviceHeading)}°`;
         if (debugBearing) debugBearing.textContent = `${Math.round(this.qiblaBearing)}°`;
+        if (debugOffset) debugOffset.textContent = `${Math.round(this.manualHeadingOffset)}°`;
+        if (debugMode) {
+            if (this.hasReceivedCompassReading) {
+                debugMode.textContent = 'Hybrid (Compass + Scroll Lock)';
+            } else if (this.platformType === 'linux-desktop') {
+                debugMode.textContent = 'Scroll Lock (Linux)';
+            } else {
+                debugMode.textContent = 'Scroll Lock';
+            }
+        }
     }
 
     // PWA Install methods
@@ -440,6 +574,7 @@ class PrayerTimesApp {
         // Once device orientation is available, updateCompassNeedle will override this
         const needle = document.getElementById('qibla-needle');
         if (needle) {
+            this.lastNeedleRotation = this.normalizeDegrees(bearing);
             needle.style.transition = 'transform 0.5s ease-in-out';
             needle.style.transform = `rotate(${bearing}deg)`;
         }

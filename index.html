@@ -437,7 +437,7 @@
         </div>
 
         <!-- Qibla Direction - Islamic Compass -->
-        <div class="bg-white/5 backdrop-blur-xl rounded-3xl p-8 mb-8 border border-white/10 shadow-2xl animate-fade-in">
+        <div id="qibla-section" class="bg-white/5 backdrop-blur-xl rounded-3xl p-8 mb-8 border border-white/10 shadow-2xl animate-fade-in">
             <h3 class="text-2xl font-bold mb-8 flex items-center font-arabic justify-center">
                 <i class="fas fa-compass text-islamic-green mr-3"></i>
                 <span>Qibla Direction</span>
@@ -514,7 +514,7 @@
                     <div class="bg-emerald-500/10 border border-emerald-500/30 rounded-2xl p-4">
                         <p class="text-sm text-emerald-300 font-arabic flex items-start">
                             <i class="fas fa-info-circle mr-3 mt-0.5 flex-shrink-0"></i>
-                            <span><strong>How to use:</strong> Hold your phone upright and rotate it until the green needle points in the direction shown. That's the direction of the Kaaba! 📱</span>
+                            <span><strong>How to use:</strong> Hybrid mode is enabled. Rotate your phone for live compass, then fine-tune with wheel/drag inside this card. Scroll is locked while interacting here.</span>
                         </p>
                     </div>
 
@@ -526,9 +526,11 @@
 
                     <!-- Debug Info (Android Compass) -->
                     <div class="bg-slate-800/50 border border-slate-700/50 rounded-xl p-3 mt-4 text-xs text-slate-500 font-mono">
+                        <p>⚙️ Mode: <span id="debug-mode">Hybrid + Scroll Lock</span></p>
                         <p>📡 Device Heading: <span id="debug-heading">--°</span></p>
                         <p>🧭 Qibla Bearing: <span id="debug-bearing">--°</span></p>
-                        <p class="text-slate-600 text-10px mt-2">Rotate your phone slowly. Green needle should spin with you.</p>
+                        <p>🎛️ Scroll Offset: <span id="debug-offset">0°</span></p>
+                        <p class="text-slate-600 text-10px mt-2">Wheel/drag on this card adjusts heading and prevents page scroll.</p>
                     </div>
                 </div>
             </div>
