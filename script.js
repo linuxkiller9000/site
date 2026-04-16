@@ -17,6 +17,7 @@ class PrayerTimesApp {
         this.magneticDeclination = 0; // Degrees to convert magnetic north -> true north
         this.declinationSource = 'Fallback';
         this.lastSensorHeading = null;
+        this.lastAbsoluteEventAt = 0;
         this.isCompassTrackingActive = false;
         this.hasAbsoluteOrientation = false;
         this.hasReceivedCompassReading = false;
@@ -276,7 +277,7 @@ class PrayerTimesApp {
         // Check for iOS 13+ which requires explicit permission
         if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
             // iOS 13+: requires user permission
-            document.addEventListener('click', () => {
+            const requestOrientationPermission = () => {
                 DeviceOrientationEvent.requestPermission()
                     .then(permissionState => {
                         if (permissionState === 'granted') {
@@ -287,7 +288,10 @@ class PrayerTimesApp {
                         }
                     })
                     .catch(error => console.log('iOS compass error:', error));
-            }, { once: true });
+            };
+
+            document.addEventListener('click', requestOrientationPermission, { once: true });
+            document.addEventListener('touchstart', requestOrientationPermission, { once: true, passive: true });
         } else if (typeof DeviceOrientationEvent !== 'undefined') {
             // Android: No permission needed, start immediately
             console.log('Android detected - starting compass tracking without permission');
@@ -317,6 +321,7 @@ class PrayerTimesApp {
     detectPlatformType() {
         const ua = navigator.userAgent || '';
         const uaDataPlatform = navigator.userAgentData?.platform || '';
+        const uaDataMobile = navigator.userAgentData?.mobile === true;
         const platform = navigator.platform || '';
         const combined = `${ua} ${uaDataPlatform} ${platform}`.toLowerCase();
 
@@ -324,10 +329,11 @@ class PrayerTimesApp {
         const isIOS = /iphone|ipad|ipod/.test(combined);
         const isLinux = combined.includes('linux');
         const isMobile = /mobile|mobi|iphone|ipad|ipod|android/.test(combined);
+        const isTouchDevice = (navigator.maxTouchPoints || 0) > 1;
 
         if (isIOS) return 'ios';
         if (isAndroid) return 'android';
-        if (isLinux && !isMobile) return 'linux-desktop';
+        if (isLinux && !isMobile && !uaDataMobile && !isTouchDevice) return 'linux-desktop';
         return 'other';
     }
 
@@ -345,6 +351,7 @@ class PrayerTimesApp {
             if (heading !== null) {
                 // Mark absolute only when it actually yields valid heading data.
                 this.hasAbsoluteOrientation = true;
+                this.lastAbsoluteEventAt = Date.now();
                 this.hasReceivedCompassReading = true;
                 this.isScrollCompassActive = false;
                 this.baseDeviceHeading = heading;
@@ -354,8 +361,8 @@ class PrayerTimesApp {
 
         // Fallback: deviceorientation
         window.addEventListener('deviceorientation', (event) => {
-            // Ignore fallback updates when absolute heading is available
-            if (this.hasAbsoluteOrientation) return;
+            // If absolute events are active, prefer them for a short window only.
+            if (this.hasAbsoluteOrientation && (Date.now() - this.lastAbsoluteEventAt) < 500) return;
 
             const heading = this.getDeviceHeadingFromEvent(event);
             if (heading !== null) {
@@ -370,10 +377,9 @@ class PrayerTimesApp {
     setupScrollBasedCompass() {
         const qiblaSection = document.getElementById('qibla-section');
         if (!qiblaSection) return;
+        if (this.platformType !== 'linux-desktop') return;
 
         const updateFromScroll = () => {
-            // Keep scroll-only fallback for desktop/Linux without sensors.
-            if (this.platformType !== 'linux-desktop') return;
             if (this.hasReceivedCompassReading) return;
 
             const viewportHeight = window.innerHeight || 1;
