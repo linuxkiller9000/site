@@ -1,0 +1,270 @@
+/* Custom Styles for PrayerTimes */
+
+/* Glassmorphism effects */
+.glass {
+    backdrop-filter: blur(16px) saturate(180%);
+    background-color: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+/* Prayer card animations */
+.prayer-card {
+    transition: all 0.3s ease;
+}
+
+.prayer-card:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 10px 25px rgba(16, 185, 129, 0.1);
+}
+
+.prayer-card.current {
+    background: linear-gradient(135deg, rgba(16, 185, 129, 0.2), rgba(16, 185, 129, 0.1));
+    border-color: rgba(16, 185, 129, 0.4);
+    box-shadow: 0 0 20px rgba(16, 185, 129, 0.2);
+}
+
+/* Loading animation */
+@keyframes pulse {
+    0%, 100% {
+        opacity: 1;
+    }
+    50% {
+        opacity: 0.5;
+    }
+}
+
+.loading-pulse {
+    animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+/* Countdown animation */
+@keyframes countdown-pulse {
+    0%, 100% {
+        transform: scale(1);
+    }
+    50% {
+        transform: scale(1.02);
+    }
+}
+
+.countdown-active {
+    animation: countdown-pulse 1s ease-in-out infinite;
+}
+
+/* Islamic patterns (subtle background) */
+.islamic-pattern {
+    background-image:
+        radial-gradient(circle at 25% 25%, rgba(16, 185, 129, 0.05) 2px, transparent 2px),
+        radial-gradient(circle at 75% 75%, rgba(16, 185, 129, 0.05) 2px, transparent 2px);
+    background-size: 20px 20px;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+    .container {
+        padding-left: 1rem;
+        padding-right: 1rem;
+    }
+
+    .prayer-card {
+        padding: 1rem;
+    }
+
+    .text-4xl {
+        font-size: 2.5rem;
+    }
+}
+
+/* Arabic font support */
+.arabic-text {
+    font-family: 'Amiri', serif;
+    direction: rtl;
+}
+
+/* Dark mode transitions */
+* {
+    transition: background-color 0.3s ease, color 0.3s ease, border-color 0.3s ease;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+    width: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+::-webkit-scrollbar-thumb {
+    background: rgba(16, 185, 129, 0.3);
+    border-radius: 4px;
+}
+
+/* Datalist styling for better appearance */
+input[list] {
+    position: relative;
+}
+
+input[list]::-webkit-calendar-picker-indicator {
+    display: none;
+}
+
+datalist {
+    background: rgba(30, 41, 59, 0.9);
+    border: 1px solid rgba(16, 185, 129, 0.3);
+    border-radius: 8px;
+    max-height: 200px;
+    overflow-y: auto;
+}
+
+datalist option {
+    padding: 8px 12px;
+    color: white;
+    background: transparent;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+datalist option:hover {
+    background: rgba(16, 185, 129, 0.2);
+}
+
+#city-suggestion-list {
+    -webkit-overflow-scrolling: touch;
+    touch-action: pan-y;
+    overscroll-behavior: contain;
+}
+
+#city-suggestion-list li {
+    cursor: pointer;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: rgba(16, 185, 129, 0.5);
+}
+
+/* Focus styles for accessibility */
+button:focus,
+input:focus,
+select:focus {
+    outline: 2px solid #10b981;
+    outline-offset: 2px;
+}
+
+/* Loading states */
+.loading {
+    position: relative;
+    overflow: hidden;
+}
+
+.loading::after {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: -100%;
+    width: 100%;
+    height: 100%;
+    background: linear-gradient(90deg, transparent, rgba(16, 185, 129, 0.1), transparent);
+    animation: loading-shimmer 1.5s infinite;
+}
+
+@keyframes loading-shimmer {
+    0% {
+        left: -100%;
+    }
+    100% {
+        left: 100%;
+    }
+}
+
+/* Error states */
+.error {
+    border-color: #ef4444 !important;
+    background-color: rgba(239, 68, 68, 0.1) !important;
+}
+
+/* Success states */
+.success {
+    border-color: #10b981 !important;
+    background-color: rgba(16, 185, 129, 0.1) !important;
+}
+
+/* Light Mode Styles */
+body:not(.dark) {
+    background: linear-gradient(to-br, #f8fafc, #e2e8f0, #f8fafc);
+    color: #1e293b;
+}
+
+body:not(.dark) .glass,
+body:not(.dark) .bg-white\/10 {
+    background-color: rgba(255, 255, 255, 0.8);
+    border-color: rgba(0, 0, 0, 0.1);
+    color: #1e293b;
+}
+
+body:not(.dark) .text-slate-300 {
+    color: #64748b;
+}
+
+body:not(.dark) .text-slate-400 {
+    color: #94a3b8;
+}
+
+body:not(.dark) .text-islamic-green {
+    color: #059669;
+}
+
+body:not(.dark) .bg-slate-800\/50 {
+    background-color: rgba(241, 245, 249, 0.8);
+    border-color: #cbd5e1;
+    color: #1e293b;
+}
+
+body:not(.dark) .bg-slate-600 {
+    background-color: #e2e8f0;
+    color: #1e293b;
+}
+
+body:not(.dark) .text-white,
+body:not(.dark) .text-slate-100,
+body:not(.dark) .text-slate-50 {
+    color: #0f172a !important;
+}
+
+body:not(.dark) .bg-slate-900\/95 {
+    background-color: rgba(241, 245, 249, 0.95);
+    color: #0f172a;
+}
+
+body:not(.dark) .hover\:bg-slate-500:hover {
+    background-color: #cbd5e1;
+}
+
+body:not(.dark) .bg-red-500\/90 {
+    background-color: rgba(239, 68, 68, 0.9);
+}
+
+body:not(.dark) datalist {
+    background: rgba(255, 255, 255, 0.9);
+    border-color: #cbd5e1;
+}
+
+body:not(.dark) datalist option {
+    color: #1e293b;
+    border-bottom-color: rgba(0, 0, 0, 0.1);
+}
+
+body:not(.dark) datalist option:hover {
+    background: rgba(5, 150, 105, 0.1);
+}
+
+body:not(.dark) ::-webkit-scrollbar-track {
+    background: rgba(0, 0, 0, 0.1);
+}
+
+body:not(.dark) ::-webkit-scrollbar-thumb {
+    background: rgba(5, 150, 105, 0.3);
+}
+
+body:not(.dark) ::-webkit-scrollbar-thumb:hover {
+    background: rgba(5, 150, 105, 0.5);
+}

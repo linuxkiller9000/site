@@ -1,0 +1,561 @@
+<!DOCTYPE html>
+<html lang="en" dir="ltr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="title" content="PrayerTimes - Islamic Prayer Times">
+    <meta name="description" content="Beautiful Islamic prayer times app with automatic location detection and elegant design">
+    <meta name="theme-color" content="#059669">
+    <meta name="author" content="motxzl">
+    <meta property="og:title" content="PrayerTimes - Islamic Prayer Times">
+    <meta property="og:description" content="Beautiful Islamic prayer times app with automatic location detection and elegant design">
+    <meta property="og:url" content="https://github.com/motxzl/prayer-times">
+    <meta property="og:type" content="website">
+    <link rel="manifest" href="manifest.json">
+    <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🕌</text></svg>">
+
+    <!-- Google Fonts for Arabic -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Amiri:wght@400;700&family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <!-- Custom Tailwind Config -->
+    <script>
+        tailwind.config = {
+            darkMode: 'class',
+            theme: {
+                extend: {
+                    colors: {
+                        islamic: {
+                            green: '#059669',
+                            dark: '#0c0a09',
+                            light: '#f8fafc'
+                        }
+                    },
+                    fontFamily: {
+                        'arabic': ['Amiri', 'serif'],
+                        'sans': ['Inter', 'system-ui', 'sans-serif']
+                    },
+                    animation: {
+                        'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+                        'fade-in': 'fadeIn 0.6s ease-in-out',
+                        'slide-up': 'slideUp 0.5s ease-out'
+                    },
+                    keyframes: {
+                        fadeIn: {
+                            '0%': { opacity: '0', transform: 'translateY(10px)' },
+                            '100%': { opacity: '1', transform: 'translateY(0)' }
+                        },
+                        slideUp: {
+                            '0%': { opacity: '0', transform: 'translateY(20px)' },
+                            '100%': { opacity: '1', transform: 'translateY(0)' }
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <!-- Custom Styles -->
+    <link rel="stylesheet" href="style.css">
+</head>
+<body class="dark bg-gradient-to-br from-islamic-dark via-slate-900 to-islamic-dark min-h-screen text-white font-sans transition-all duration-500">
+    <!-- Loading Screen -->
+    <div id="loading" class="fixed inset-0 bg-gradient-to-br from-islamic-dark via-slate-900 to-islamic-dark flex items-center justify-center z-50">
+        <div class="text-center animate-fade-in">
+            <div class="relative mb-6">
+                <div class="animate-spin rounded-full h-20 w-20 border-4 border-islamic-green/20 border-t-islamic-green mx-auto"></div>
+                <div class="absolute inset-0 rounded-full border-4 border-transparent border-t-emerald-400/60 animate-pulse-slow"></div>
+            </div>
+            <div class="animate-slide-up">
+                <i class="fas fa-mosque text-4xl text-islamic-green mb-4"></i>
+                <p class="text-islamic-green text-xl font-semibold font-arabic">Loading Prayer Times...</p>
+                <p class="text-slate-400 text-sm mt-2">جاري تحميل أوقات الصلاة</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Main Container -->
+    <div class="container mx-auto px-4 py-8 max-w-4xl opacity-0 transition-opacity duration-500" id="main-content">
+        <!-- Header -->
+        <header class="text-center mb-8 animate-fade-in">
+            <div class="flex items-center justify-center mb-6">
+                <div class="relative">
+                    <i class="fas fa-mosque text-5xl text-islamic-green drop-shadow-lg"></i>
+                    <div class="absolute -top-1 -right-1 w-3 h-3 bg-emerald-400 rounded-full animate-pulse"></div>
+                </div>
+                <div class="ml-4">
+                    <h1 class="text-4xl md:text-6xl font-bold bg-gradient-to-r from-islamic-green via-emerald-400 to-teal-400 bg-clip-text text-transparent font-arabic">
+                        PrayerTimes
+                    </h1>
+                    <p class="text-slate-300 text-lg md:text-xl font-arabic">أوقات الصلاة</p>
+                </div>
+            </div>
+            <p class="text-slate-400 text-lg mb-6 font-arabic">Islamic Prayer Times</p>
+
+            <!-- Date Display -->
+            <div class="bg-white/5 backdrop-blur-xl rounded-3xl p-6 mb-6 border border-white/10 shadow-2xl">
+                <div class="flex flex-col md:flex-row items-center justify-between">
+                    <div class="text-center md:text-left mb-4 md:mb-0">
+                        <p class="text-sm text-slate-400 mb-1">Gregorian Date</p>
+                        <p class="text-lg font-semibold text-islamic-green font-arabic" id="gregorian-date">Loading date...</p>
+                        <p class="text-sm text-slate-400 mt-2">Hijri Date</p>
+                        <p class="text-xl font-bold text-emerald-300 font-arabic" id="hijri-date">Loading Hijri date...</p>
+                    </div>
+                    <div class="text-center md:text-right">
+                        <p class="text-sm text-slate-400 mb-1">Current Time</p>
+                        <p class="text-3xl md:text-4xl font-mono font-bold text-white" id="current-time">--:--</p>
+                        <div class="flex items-center justify-center mt-2">
+                            <i class="fas fa-clock text-islamic-green mr-2"></i>
+                            <span class="text-xs text-slate-400">Live</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </header>
+
+        <!-- Location Selector -->
+        <div class="bg-white/5 backdrop-blur-xl rounded-3xl p-6 mb-6 border border-white/10 shadow-2xl animate-fade-in">
+            <div class="flex items-center justify-between mb-4">
+                <h2 class="text-xl font-semibold flex items-center font-arabic">
+                    <i class="fas fa-map-marker-alt text-islamic-green mr-3 text-2xl"></i>
+                    Location Settings
+                </h2>
+                <button id="location-toggle" class="text-sm bg-islamic-green/20 hover:bg-islamic-green/30 px-4 py-2 rounded-xl transition-all duration-300 hover:scale-105 border border-islamic-green/30">
+                    <i class="fas fa-cog mr-2"></i>Configure
+                </button>
+            </div>
+
+            <div id="location-display" class="text-center">
+                <p class="text-slate-300 mb-2 font-arabic">Current Location</p>
+                <p class="text-xl font-bold text-islamic-green font-arabic" id="current-location">Loading...</p>
+                <button id="retry-button" class="mt-3 text-sm bg-red-500/20 hover:bg-red-500/30 text-red-300 px-4 py-2 rounded-xl transition-all duration-300 hover:scale-105 border border-red-500/30 hidden">
+                    <i class="fas fa-redo mr-2"></i>Retry Detection
+                </button>
+            </div>
+
+            <!-- Location Settings (Hidden by default) -->
+            <div id="location-settings" class="hidden mt-4 space-y-4">
+                <div>
+                    <label class="block text-sm font-medium text-slate-300 mb-2">Country</label>
+                    <select id="country-input" class="w-full bg-slate-800/50 border border-slate-600 rounded-lg px-3 py-2 text-white focus:outline-none focus:ring-2 focus:ring-islamic-green">
+                        <option value="">Select a country...</option>
+                        <option value="Afghanistan">Afghanistan</option>
+                        <option value="Albania">Albania</option>
+                        <option value="Algeria">Algeria</option>
+                        <option value="Argentina">Argentina</option>
+                        <option value="Australia">Australia</option>
+                        <option value="Austria">Austria</option>
+                        <option value="Bahrain">Bahrain</option>
+                        <option value="Bangladesh">Bangladesh</option>
+                        <option value="Belgium">Belgium</option>
+                        <option value="Brazil">Brazil</option>
+                        <option value="Bulgaria">Bulgaria</option>
+                        <option value="Canada">Canada</option>
+                        <option value="Chile">Chile</option>
+                        <option value="China">China</option>
+                        <option value="Colombia">Colombia</option>
+                        <option value="Croatia">Croatia</option>
+                        <option value="Czech Republic">Czech Republic</option>
+                        <option value="Denmark">Denmark</option>
+                        <option value="Egypt">Egypt</option>
+                        <option value="Finland">Finland</option>
+                        <option value="France">France</option>
+                        <option value="Germany">Germany</option>
+                        <option value="Greece">Greece</option>
+                        <option value="Hungary">Hungary</option>
+                        <option value="Iceland">Iceland</option>
+                        <option value="India">India</option>
+                        <option value="Indonesia">Indonesia</option>
+                        <option value="Iran">Iran</option>
+                        <option value="Iraq">Iraq</option>
+                        <option value="Ireland">Ireland</option>
+                        <option value="Italy">Italy</option>
+                        <option value="Japan">Japan</option>
+                        <option value="Jordan">Jordan</option>
+                        <option value="Kazakhstan">Kazakhstan</option>
+                        <option value="Kenya">Kenya</option>
+                        <option value="Kuwait">Kuwait</option>
+                        <option value="Kyrgyzstan">Kyrgyzstan</option>
+                        <option value="Lebanon">Lebanon</option>
+                        <option value="Libya">Libya</option>
+                        <option value="Malaysia">Malaysia</option>
+                        <option value="Maldives">Maldives</option>
+                        <option value="Mexico">Mexico</option>
+                        <option value="Morocco">Morocco</option>
+                        <option value="Netherlands">Netherlands</option>
+                        <option value="New Zealand">New Zealand</option>
+                        <option value="Norway">Norway</option>
+                        <option value="Oman">Oman</option>
+                        <option value="Pakistan">Pakistan</option>
+                        <option value="Palestine">Palestine</option>
+                        <option value="Peru">Peru</option>
+                        <option value="Philippines">Philippines</option>
+                        <option value="Poland">Poland</option>
+                        <option value="Portugal">Portugal</option>
+                        <option value="Qatar">Qatar</option>
+                        <option value="Romania">Romania</option>
+                        <option value="Russia">Russia</option>
+                        <option value="Saudi Arabia">Saudi Arabia</option>
+                        <option value="Singapore">Singapore</option>
+                        <option value="South Africa">South Africa</option>
+                        <option value="South Korea">South Korea</option>
+                        <option value="Spain">Spain</option>
+                        <option value="Sri Lanka">Sri Lanka</option>
+                        <option value="Sudan">Sudan</option>
+                        <option value="Sweden">Sweden</option>
+                        <option value="Switzerland">Switzerland</option>
+                        <option value="Syria">Syria</option>
+                        <option value="Taiwan">Taiwan</option>
+                        <option value="Tajikistan">Tajikistan</option>
+                        <option value="Thailand">Thailand</option>
+                        <option value="Tunisia">Tunisia</option>
+                        <option value="Turkey">Turkey</option>
+                        <option value="Turkmenistan">Turkmenistan</option>
+                        <option value="UAE">UAE</option>
+                        <option value="United Arab Emirates">United Arab Emirates</option>
+                        <option value="United Kingdom">United Kingdom</option>
+                        <option value="United States">United States</option>
+                        <option value="Uzbekistan">Uzbekistan</option>
+                        <option value="Vietnam">Vietnam</option>
+                        <option value="Yemen">Yemen</option>
+                        <option value="Zimbabwe">Zimbabwe</option>
+                    </select>
+                    <p id="country-recommendation" class="mt-2 text-xs text-slate-400">Recommended countries: Egypt, Saudi Arabia, Turkey, Indonesia, Pakistan.</p>
+                </div>
+<div>
+                    <label class="block text-sm font-medium text-slate-300 mb-2">City</label>
+                    <div id="city-list-container" class="relative">
+                        <input type="text" id="city-input" placeholder="Select a country first to choose a city" class="w-full bg-slate-800/50 border border-slate-600 rounded-lg px-3 py-2 text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-islamic-green" list="city-suggestions" disabled>
+                        <datalist id="city-suggestions"></datalist>
+                        <ul id="city-suggestion-list" class="hidden absolute z-20 mt-1 w-full max-h-52 overflow-y-auto rounded-2xl border border-slate-600 bg-slate-900/95 shadow-xl text-left"></ul>
+                    </div>
+                    <p id="city-recommendations" class="mt-2 text-xs text-slate-400">Choose a country first to see city recommendations.</p>
+                </div>
+
+                <div class="flex gap-3">
+                    <button id="detect-location" class="flex-1 bg-gradient-to-r from-islamic-green to-emerald-600 hover:from-emerald-600 hover:to-teal-600 text-white py-3 px-6 rounded-xl transition-all duration-300 hover:scale-105 shadow-lg hover:shadow-xl border border-islamic-green/50">
+                        <i class="fas fa-crosshairs mr-2"></i>Detect Location
+                    </button>
+                    <button id="manual-location" class="flex-1 bg-slate-700/50 hover:bg-slate-600/50 text-white py-3 px-6 rounded-xl transition-all duration-300 hover:scale-105 shadow-lg hover:shadow-xl border border-slate-600/50">
+                        <i class="fas fa-search mr-2"></i>Search City
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Next Prayer Countdown -->
+        <div class="bg-gradient-to-r from-islamic-green/10 via-emerald-600/10 to-teal-500/10 backdrop-blur-xl rounded-3xl p-8 mb-8 border border-islamic-green/20 shadow-2xl animate-fade-in" id="next-prayer-card">
+            <div class="text-center">
+                <div class="flex items-center justify-center mb-4">
+                    <i class="fas fa-clock text-islamic-green text-2xl mr-3"></i>
+                    <h3 class="text-2xl font-bold font-arabic">Next Prayer</h3>
+                </div>
+                <p class="text-3xl md:text-4xl font-bold text-islamic-green mb-4 font-arabic" id="next-prayer-name">Loading...</p>
+                <p class="text-5xl md:text-7xl font-mono font-bold mb-6 text-white drop-shadow-lg" id="countdown">00:00:00</p>
+                <div class="flex items-center justify-center">
+                    <i class="fas fa-calendar-alt text-slate-400 mr-2"></i>
+                    <p class="text-slate-300 text-lg font-arabic" id="next-prayer-time">Time loading...</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Prayer Times Grid -->
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
+            <!-- Fajr -->
+            <div class="prayer-card bg-white/5 backdrop-blur-xl rounded-3xl p-6 border border-white/10 shadow-2xl transition-all duration-500 hover:bg-white/10 hover:scale-105 hover:shadow-3xl animate-fade-in" data-prayer="Fajr">
+                <div class="flex items-center justify-between mb-4">
+                    <div class="flex items-center">
+                        <div class="w-12 h-12 bg-gradient-to-br from-indigo-500/20 to-purple-600/20 rounded-2xl flex items-center justify-center mr-4 border border-indigo-400/30">
+                            <i class="fas fa-moon text-indigo-400 text-2xl"></i>
+                        </div>
+                        <div>
+                            <span class="text-xl font-bold font-arabic text-white">Fajr</span>
+                            <p class="text-xs text-slate-400 font-arabic">الفجر</p>
+                        </div>
+                    </div>
+                    <span class="text-lg font-mono font-bold text-slate-300" id="fajr-time">--:--</span>
+                </div>
+                <p class="text-sm text-slate-400 font-arabic">Dawn Prayer - صلاة الفجر</p>
+            </div>
+
+            <!-- Sunrise -->
+            <div class="prayer-card bg-white/5 backdrop-blur-xl rounded-3xl p-6 border border-white/10 shadow-2xl transition-all duration-500 hover:bg-white/10 hover:scale-105 hover:shadow-3xl animate-fade-in" data-prayer="Sunrise">
+                <div class="flex items-center justify-between mb-4">
+                    <div class="flex items-center">
+                        <div class="w-12 h-12 bg-gradient-to-br from-yellow-500/20 to-orange-500/20 rounded-2xl flex items-center justify-center mr-4 border border-yellow-400/30">
+                            <i class="fas fa-sun text-yellow-400 text-2xl"></i>
+                        </div>
+                        <div>
+                            <span class="text-xl font-bold font-arabic text-white">Sunrise</span>
+                            <p class="text-xs text-slate-400 font-arabic">الشروق</p>
+                        </div>
+                    </div>
+                    <span class="text-lg font-mono font-bold text-slate-300" id="sunrise-time">--:--</span>
+                </div>
+                <p class="text-sm text-slate-400 font-arabic">Sunrise Time - وقت الشروق</p>
+            </div>
+
+            <!-- Dhuhr -->
+            <div class="prayer-card bg-white/5 backdrop-blur-xl rounded-3xl p-6 border border-white/10 shadow-2xl transition-all duration-500 hover:bg-white/10 hover:scale-105 hover:shadow-3xl animate-fade-in" data-prayer="Dhuhr">
+                <div class="flex items-center justify-between mb-4">
+                    <div class="flex items-center">
+                        <div class="w-12 h-12 bg-gradient-to-br from-orange-500/20 to-red-500/20 rounded-2xl flex items-center justify-center mr-4 border border-orange-400/30">
+                            <i class="fas fa-sun text-orange-400 text-2xl"></i>
+                        </div>
+                        <div>
+                            <span class="text-xl font-bold font-arabic text-white">Dhuhr</span>
+                            <p class="text-xs text-slate-400 font-arabic">الظهر</p>
+                        </div>
+                    </div>
+                    <span class="text-lg font-mono font-bold text-slate-300" id="dhuhr-time">--:--</span>
+                </div>
+                <p class="text-sm text-slate-400 font-arabic">Noon Prayer - صلاة الظهر</p>
+            </div>
+
+            <!-- Asr -->
+            <div class="prayer-card bg-white/5 backdrop-blur-xl rounded-3xl p-6 border border-white/10 shadow-2xl transition-all duration-500 hover:bg-white/10 hover:scale-105 hover:shadow-3xl animate-fade-in" data-prayer="Asr">
+                <div class="flex items-center justify-between mb-4">
+                    <div class="flex items-center">
+                        <div class="w-12 h-12 bg-gradient-to-br from-blue-500/20 to-cyan-500/20 rounded-2xl flex items-center justify-center mr-4 border border-blue-400/30">
+                            <i class="fas fa-cloud-sun text-blue-400 text-2xl"></i>
+                        </div>
+                        <div>
+                            <span class="text-xl font-bold font-arabic text-white">Asr</span>
+                            <p class="text-xs text-slate-400 font-arabic">العصر</p>
+                        </div>
+                    </div>
+                    <span class="text-lg font-mono font-bold text-slate-300" id="asr-time">--:--</span>
+                </div>
+                <p class="text-sm text-slate-400 font-arabic">Afternoon Prayer - صلاة العصر</p>
+            </div>
+
+            <!-- Maghrib -->
+            <div class="prayer-card bg-white/5 backdrop-blur-xl rounded-3xl p-6 border border-white/10 shadow-2xl transition-all duration-500 hover:bg-white/10 hover:scale-105 hover:shadow-3xl animate-fade-in" data-prayer="Maghrib">
+                <div class="flex items-center justify-between mb-4">
+                    <div class="flex items-center">
+                        <div class="w-12 h-12 bg-gradient-to-br from-red-500/20 to-pink-500/20 rounded-2xl flex items-center justify-center mr-4 border border-red-400/30">
+                            <i class="fas fa-sunset text-red-400 text-2xl"></i>
+                        </div>
+                        <div>
+                            <span class="text-xl font-bold font-arabic text-white">Maghrib</span>
+                            <p class="text-xs text-slate-400 font-arabic">المغرب</p>
+                        </div>
+                    </div>
+                    <span class="text-lg font-mono font-bold text-slate-300" id="maghrib-time">--:--</span>
+                </div>
+                <p class="text-sm text-slate-400 font-arabic">Sunset Prayer - صلاة المغرب</p>
+            </div>
+
+            <!-- Isha -->
+            <div class="prayer-card bg-white/5 backdrop-blur-xl rounded-3xl p-6 border border-white/10 shadow-2xl transition-all duration-500 hover:bg-white/10 hover:scale-105 hover:shadow-3xl animate-fade-in" data-prayer="Isha">
+                <div class="flex items-center justify-between mb-4">
+                    <div class="flex items-center">
+                        <div class="w-12 h-12 bg-gradient-to-br from-indigo-500/20 to-blue-600/20 rounded-2xl flex items-center justify-center mr-4 border border-indigo-400/30">
+                            <i class="fas fa-star text-indigo-400 text-2xl"></i>
+                        </div>
+                        <div>
+                            <span class="text-xl font-bold font-arabic text-white">Isha</span>
+                            <p class="text-xs text-slate-400 font-arabic">العشاء</p>
+                        </div>
+                    </div>
+                    <span class="text-lg font-mono font-bold text-slate-300" id="isha-time">--:--</span>
+                </div>
+                <p class="text-sm text-slate-400 font-arabic">Night Prayer - صلاة العشاء</p>
+            </div>
+        </div>
+
+        <!-- Additional Times -->
+        <div class="bg-white/5 backdrop-blur-xl rounded-3xl p-6 mb-6 border border-white/10 shadow-2xl animate-fade-in">
+            <h3 class="text-xl font-semibold mb-6 flex items-center font-arabic">
+                <i class="fas fa-clock text-islamic-green mr-3 text-2xl"></i>
+                Additional Times - الأوقات الإضافية
+            </h3>
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-6">
+                <div class="text-center p-4 bg-slate-800/30 rounded-2xl border border-slate-700/50">
+                    <p class="text-sm text-slate-400 mb-1 font-arabic">Imsak</p>
+                    <p class="text-xl font-bold font-arabic" id="imsak-time">--:--</p>
+                    <p class="text-xs text-slate-500 font-arabic">الإمساك</p>
+                </div>
+                <div class="text-center p-4 bg-slate-800/30 rounded-2xl border border-slate-700/50">
+                    <p class="text-sm text-slate-400 mb-1 font-arabic">Midnight</p>
+                    <p class="text-xl font-bold font-arabic" id="midnight-time">--:--</p>
+                    <p class="text-xs text-slate-500 font-arabic">منتصف الليل</p>
+                </div>
+                <div class="text-center p-4 bg-slate-800/30 rounded-2xl border border-slate-700/50">
+                    <p class="text-sm text-slate-400 mb-1 font-arabic">First Third</p>
+                    <p class="text-xl font-bold font-arabic" id="firstthird-time">--:--</p>
+                    <p class="text-xs text-slate-500 font-arabic">الثلث الأول</p>
+                </div>
+                <div class="text-center p-4 bg-slate-800/30 rounded-2xl border border-slate-700/50">
+                    <p class="text-sm text-slate-400 mb-1 font-arabic">Last Third</p>
+                    <p class="text-xl font-bold font-arabic" id="lastthird-time">--:--</p>
+                    <p class="text-xs text-slate-500 font-arabic">الثلث الأخير</p>
+                </div>
+            </div>
+        </div>
+
+        <!-- Settings -->
+        <div class="bg-white/5 backdrop-blur-xl rounded-3xl p-6 mb-6 border border-white/10 shadow-2xl animate-fade-in">
+            <h3 class="text-xl font-semibold mb-6 flex items-center font-arabic">
+                <i class="fas fa-cog text-islamic-green mr-3 text-2xl"></i>
+                Settings - الإعدادات
+            </h3>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+                <!-- Time Format -->
+                <div class="p-4 bg-slate-800/30 rounded-2xl border border-slate-700/50">
+                    <label class="block text-sm font-medium text-slate-300 mb-3 font-arabic">Time Format - تنسيق الوقت</label>
+                    <select id="time-format" class="w-full bg-slate-700/50 border border-slate-600 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-islamic-green focus:border-transparent transition-all duration-300">
+                        <option value="24">24 Hour - 24 ساعة</option>
+                        <option value="12">12 Hour - 12 ساعة</option>
+                    </select>
+                </div>
+
+                <!-- Calculation Method -->
+                <div class="p-4 bg-slate-800/30 rounded-2xl border border-slate-700/50">
+                    <label class="block text-sm font-medium text-slate-300 mb-3 font-arabic">Calculation Method - طريقة الحساب</label>
+                    <select id="calculation-method" class="w-full bg-slate-700/50 border border-slate-600 rounded-xl px-4 py-3 text-white focus:outline-none focus:ring-2 focus:ring-islamic-green focus:border-transparent transition-all duration-300">
+                        <option value="5">Egyptian General Authority - الهيئة المصرية</option>
+                    </select>
+                </div>
+
+                <!-- Theme Toggle -->
+                <div class="p-4 bg-slate-800/30 rounded-2xl border border-slate-700/50">
+                    <label class="block text-sm font-medium text-slate-300 mb-3 font-arabic">Theme - المظهر</label>
+                    <button id="theme-toggle" class="w-full bg-slate-700/50 border border-slate-600 rounded-xl px-4 py-3 text-white hover:bg-slate-600/50 transition-all duration-300 hover:scale-105 flex items-center justify-center shadow-lg">
+                        <i class="fas fa-moon mr-3 text-xl"></i>
+                        <span class="font-arabic">Dark Mode - الوضع المظلم</span>
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- Qibla Direction - Islamic Compass -->
+        <div class="bg-white/5 backdrop-blur-xl rounded-3xl p-8 mb-8 border border-white/10 shadow-2xl animate-fade-in">
+            <h3 class="text-2xl font-bold mb-8 flex items-center font-arabic justify-center">
+                <i class="fas fa-compass text-islamic-green mr-3"></i>
+                <span>Qibla Direction</span>
+                <span class="text-sm ml-2 text-slate-400">اتجاه القبلة</span>
+            </h3>
+            
+            <div class="flex flex-col lg:flex-row items-center justify-center gap-8">
+                <!-- Compass Container -->
+                <div class="relative">
+                    <!-- Main Compass Circle with Gradient -->
+                    <div class="relative w-64 h-64 rounded-full border-4 border-islamic-green/40 bg-gradient-to-br from-slate-800/40 via-slate-900/60 to-slate-800/40 shadow-2xl flex items-center justify-center">
+                        
+                        <!-- Degree Markings (12 major, 48 minor) -->
+                        <svg class="absolute inset-0 w-full h-full" viewBox="0 0 200 200" style="pointer-events: none;">
+                            <!-- Major degree marks (every 30°) -->
+                            <g stroke="currentColor" class="text-islamic-green/60" stroke-width="2">
+                                <line x1="100" y1="10" x2="100" y2="20" />
+                                <line x1="100" y1="190" x2="100" y2="180" />
+                                <line x1="10" y1="100" x2="20" y2="100" />
+                                <line x1="190" y1="100" x2="180" y2="100" />
+                            </g>
+                            <!-- More marks created via CSS would be repetitive, so keeping it simple with main 4 -->
+                        </svg>
+
+                        <!-- Cardinal Direction Labels -->
+                        <div class="absolute inset-0 flex items-center justify-center text-center pointer-events-none">
+                            <!-- North -->
+                            <div class="absolute top-4 text-islamic-green font-bold text-lg">N</div>
+                            <!-- East -->
+                            <div class="absolute right-4 text-slate-400 font-bold text-lg">E</div>
+                            <!-- South -->
+                            <div class="absolute bottom-4 text-slate-400 font-bold text-lg">S</div>
+                            <!-- West -->
+                            <div class="absolute left-4 text-slate-400 font-bold text-lg">W</div>
+                        </div>
+
+                        <!-- Rotating Qibla Needle (Islamic Crescent Style) -->
+                        <div id="qibla-needle" class="absolute inset-0 flex items-center justify-center transition-transform duration-700 ease-in-out" style="transform: rotate(0deg);">
+                            <!-- The needle - green crescent pointing up -->
+                            <div class="absolute top-6 w-2 h-16 bg-gradient-to-b from-emerald-300 via-islamic-green to-emerald-600 rounded-full shadow-lg" style="box-shadow: 0 0 15px rgba(5, 150, 105, 0.8);"></div>
+                            <!-- Arrow head -->
+                            <div class="absolute top-2 w-0 h-0" style="border-left: 8px solid transparent; border-right: 8px solid transparent; border-bottom: 12px solid #059669;"></div>
+                        </div>
+
+                        <!-- Center Ring -->
+                        <div class="absolute w-8 h-8 rounded-full bg-gradient-to-br from-islamic-green to-emerald-600 shadow-lg border-4 border-slate-900/80"></div>
+
+                        <!-- Outer Ring (subtle detail) -->
+                        <div class="absolute inset-1 rounded-full border border-islamic-green/20"></div>
+                    </div>
+
+                    <!-- Degree Display Below Compass -->
+                    <div class="text-center mt-4">
+                        <p class="text-sm text-slate-400 mb-1">Current Qibla Direction</p>
+                        <p class="text-4xl font-bold text-islamic-green font-mono" id="qibla-angle">--°</p>
+                    </div>
+                </div>
+
+                <!-- Information Panel -->
+                <div class="flex-1 text-center lg:text-left space-y-6">
+                    <!-- Direction Text -->
+                    <div>
+                        <p class="text-sm text-slate-400 mb-2 font-arabic">Direction Name</p>
+                        <p class="text-2xl font-bold text-white font-arabic" id="qibla-direction">Calculating...</p>
+                    </div>
+
+                    <!-- Location -->
+                    <div class="bg-white/5 border border-white/10 rounded-2xl p-4">
+                        <p class="text-sm text-slate-400 mb-1 font-arabic">📍 Calculating from</p>
+                        <p class="text-lg font-semibold text-slate-200" id="qibla-location">Loading location...</p>
+                    </div>
+
+                    <!-- Instructions -->
+                    <div class="bg-emerald-500/10 border border-emerald-500/30 rounded-2xl p-4">
+                        <p class="text-sm text-emerald-300 font-arabic flex items-start">
+                            <i class="fas fa-info-circle mr-3 mt-0.5 flex-shrink-0"></i>
+                            <span><strong>How to use:</strong> Hold your phone upright and rotate it until the green needle points in the direction shown. That's the direction of the Kaaba! 📱</span>
+                        </p>
+                    </div>
+
+                    <!-- Qibla Location Info -->
+                    <div class="text-xs text-slate-400 font-arabic">
+                        <p>🕌 Kaaba Location: Mecca, Saudi Arabia</p>
+                        <p class="text-slate-500 text-10px">21.4225° N, 39.8262° E</p>
+                    </div>
+
+                    <!-- Debug Info (Android Compass) -->
+                    <div class="bg-slate-800/50 border border-slate-700/50 rounded-xl p-3 mt-4 text-xs text-slate-500 font-mono">
+                        <p>📡 Device Heading: <span id="debug-heading">--°</span></p>
+                        <p>🧭 Qibla Bearing: <span id="debug-bearing">--°</span></p>
+                        <p class="text-slate-600 text-10px mt-2">Rotate your phone slowly. Green needle should spin with you.</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Footer -->
+        <footer class="text-center text-slate-400 text-sm animate-fade-in">
+            <p class="mb-4 font-arabic">Made with ❤️ for the Ummah - صنع بحب للأمة</p>
+            <div class="flex flex-col md:flex-row items-center justify-center gap-4 mb-4">
+                <a href="https://github.com/motxzl/prayer-times#" class="text-islamic-green hover:text-emerald-400 transition-all duration-300 hover:scale-105 flex items-center px-4 py-2 bg-white/5 rounded-xl border border-white/10">
+                    <i class="fab fa-github mr-2"></i>View on GitHub
+                </a>
+                <div class="text-center">
+                    <p class="text-xs">Made in 🇪🇬 BY Mohamed</p>
+                    <p class="text-xs mt-1">Data provided by Aladhan API</p>
+                </div>
+            </div>
+        </footer>
+    </div>
+
+    <!-- Install App Button -->
+    <button id="install-button" class="fixed top-6 right-6 bg-gradient-to-r from-islamic-green to-emerald-600 hover:from-emerald-600 hover:to-teal-600 text-white px-6 py-3 rounded-2xl shadow-2xl transition-all duration-300 transform hover:scale-110 hidden flex items-center border border-islamic-green/50 backdrop-blur-xl">
+        <i class="fas fa-mobile-alt mr-3 text-xl"></i>
+        <span class="font-arabic">Install App - تثبيت التطبيق</span>
+    </button>
+
+    <!-- JavaScript -->
+    <script src="script.js"></script>
+</body>
+</html>
