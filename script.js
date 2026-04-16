@@ -329,7 +329,7 @@ class PrayerTimesApp {
         const isIOS = /iphone|ipad|ipod/.test(combined);
         const isLinux = combined.includes('linux');
         const isMobile = /mobile|mobi|iphone|ipad|ipod|android/.test(combined);
-        const isTouchDevice = (navigator.maxTouchPoints || 0) > 1;
+        const isTouchDevice = (navigator.maxTouchPoints || 0) > 0 || 'ontouchstart' in window;
 
         if (isIOS) return 'ios';
         if (isAndroid) return 'android';
