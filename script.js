@@ -14,12 +14,15 @@ class PrayerTimesApp {
         this.deviceHeading = 0; // Current device heading from compass
         this.baseDeviceHeading = 0; // Raw heading from sensor/scroll progress
         this.manualHeadingOffset = 0; // User adjustment via wheel/touch in hybrid mode
+        this.magneticDeclination = 0; // Degrees to convert magnetic north -> true north
+        this.declinationSource = 'Fallback';
         this.isCompassTrackingActive = false;
         this.hasAbsoluteOrientation = false;
         this.hasReceivedCompassReading = false;
         this.isScrollCompassActive = false;
         this.platformType = this.detectPlatformType();
         this.lastNeedleRotation = null;
+        this.lastCompassCircleRotation = null;
         this.headingError = null; // Absolute angular distance to Qibla (degrees)
         this.settings = {
             timeFormat: localStorage.getItem('timeFormat') || '12',
@@ -422,6 +425,39 @@ class PrayerTimesApp {
         return ((to - from + 540) % 360) - 180;
     }
 
+    smoothRotate(currentValue, targetValue) {
+        if (currentValue === null) return targetValue;
+        return currentValue + this.shortestAngleDelta(currentValue, targetValue);
+    }
+
+    async updateMagneticDeclination() {
+        if (!this.currentLocation || typeof this.currentLocation.lat !== 'number' || typeof this.currentLocation.lng !== 'number') {
+            return;
+        }
+
+        try {
+            const year = new Date().getUTCFullYear();
+            const url = `https://www.ngdc.noaa.gov/geomag-web/calculators/calculateDeclination?lat1=${this.currentLocation.lat}&lon1=${this.currentLocation.lng}&model=WMM&startYear=${year}&resultFormat=json`;
+            const response = await fetch(url);
+            if (!response.ok) throw new Error(`Declination API failed: ${response.status}`);
+
+            const data = await response.json();
+            const value = data?.result?.[0]?.declination;
+            if (typeof value === 'number' && Number.isFinite(value)) {
+                this.magneticDeclination = value;
+                this.declinationSource = 'NOAA WMM API';
+            } else {
+                throw new Error('Declination value missing');
+            }
+        } catch (error) {
+            console.warn('Using fallback declination = 0°:', error);
+            this.magneticDeclination = 0;
+            this.declinationSource = 'Fallback 0°';
+        }
+
+        this.updateCompassNeedle();
+    }
+
     // Convert device orientation event data into a compass heading in degrees
     getDeviceHeadingFromEvent(event) {
         // iOS-specific heading
@@ -447,37 +483,46 @@ class PrayerTimesApp {
     // Update needle rotation based on device heading and Qibla bearing
     updateCompassNeedle() {
         const needle = document.getElementById('qibla-needle');
+        const compassCircle = document.getElementById('qibla-compass-circle');
         if (!needle) return;
 
-        const activeHeading = this.hasReceivedCompassReading
+        const magneticHeading = this.hasReceivedCompassReading
             ? this.normalizeDegrees(this.baseDeviceHeading + this.manualHeadingOffset)
             : this.baseDeviceHeading;
+        const activeHeading = this.normalizeDegrees(magneticHeading + this.magneticDeclination);
         this.deviceHeading = activeHeading;
 
-        // Calculate needle rotation:
-        // The needle should point toward Qibla relative to magnetic north.
-        const targetRotation = this.normalizeDegrees(this.qiblaBearing - activeHeading);
+        // Real-compass behavior:
+        // 1) Compass card rotates with heading
+        // 2) Needle rotates to fixed Qibla bearing on the card
+        const targetNeedleRotation = this.normalizeDegrees(this.qiblaBearing);
+        const targetCircleRotation = this.normalizeDegrees(-activeHeading);
         this.headingError = Math.abs(this.shortestAngleDelta(activeHeading, this.qiblaBearing));
 
         // Rotate using the shortest path to avoid big jumps near 0/360.
-        if (this.lastNeedleRotation === null) {
-            this.lastNeedleRotation = targetRotation;
-        } else {
-            this.lastNeedleRotation += this.shortestAngleDelta(this.lastNeedleRotation, targetRotation);
-        }
+        this.lastNeedleRotation = this.smoothRotate(this.lastNeedleRotation, targetNeedleRotation);
+        this.lastCompassCircleRotation = this.smoothRotate(this.lastCompassCircleRotation, targetCircleRotation);
 
         needle.style.transition = 'transform 0.15s ease-out';
         needle.style.transform = `rotate(${this.lastNeedleRotation}deg)`;
+        if (compassCircle) {
+            compassCircle.style.transition = 'transform 0.15s ease-out';
+            compassCircle.style.transform = `rotate(${this.lastCompassCircleRotation}deg)`;
+        }
 
         const debugHeading = document.getElementById('debug-heading');
         const debugBearing = document.getElementById('debug-bearing');
         const debugMode = document.getElementById('debug-mode');
         const debugOffset = document.getElementById('debug-offset');
         const debugError = document.getElementById('debug-error');
+        const debugDeclination = document.getElementById('debug-declination');
+        const debugDeclinationSource = document.getElementById('debug-declination-source');
         if (debugHeading) debugHeading.textContent = `${Math.round(this.deviceHeading)}°`;
         if (debugBearing) debugBearing.textContent = `${Math.round(this.qiblaBearing)}°`;
         if (debugOffset) debugOffset.textContent = `${Math.round(this.manualHeadingOffset)}°`;
         if (debugError) debugError.textContent = `${Math.round(this.headingError)}°`;
+        if (debugDeclination) debugDeclination.textContent = `${this.magneticDeclination.toFixed(1)}°`;
+        if (debugDeclinationSource) debugDeclinationSource.textContent = this.declinationSource;
         if (debugMode) {
             if (this.hasReceivedCompassReading) {
                 debugMode.textContent = 'Hybrid (Compass + Scroll Lock)';
@@ -585,6 +630,7 @@ class PrayerTimesApp {
 
         // Update the UI with the calculated bearing
         this.updateQiblaDisplay(bearing);
+        this.updateMagneticDeclination();
     }
 
     updateQiblaDisplay(bearing) {
