@@ -51,6 +51,21 @@
     animation: countdown-pulse 1s ease-in-out infinite;
 }
 
+.qibla-compass-shell {
+    transition: transform 0.22s ease, filter 0.22s ease;
+    transform-origin: center;
+}
+
+.qibla-compass-shell.near-target {
+    transform: scale(1.08);
+    filter: drop-shadow(0 0 12px rgba(16, 185, 129, 0.35));
+}
+
+.qibla-compass-shell.on-target {
+    transform: scale(1.16);
+    filter: drop-shadow(0 0 18px rgba(16, 185, 129, 0.55));
+}
+
 /* Islamic patterns (subtle background) */
 .islamic-pattern {
     background-image:

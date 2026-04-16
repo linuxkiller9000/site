@@ -20,6 +20,7 @@ class PrayerTimesApp {
         this.isScrollCompassActive = false;
         this.platformType = this.detectPlatformType();
         this.lastNeedleRotation = null;
+        this.headingError = null; // Absolute angular distance to Qibla (degrees)
         this.settings = {
             timeFormat: localStorage.getItem('timeFormat') || '12',
             calculationMethod: localStorage.getItem('calculationMethod') || '5',
@@ -456,6 +457,7 @@ class PrayerTimesApp {
         // Calculate needle rotation:
         // The needle should point toward Qibla relative to magnetic north.
         const targetRotation = this.normalizeDegrees(this.qiblaBearing - activeHeading);
+        this.headingError = Math.abs(this.shortestAngleDelta(activeHeading, this.qiblaBearing));
 
         // Rotate using the shortest path to avoid big jumps near 0/360.
         if (this.lastNeedleRotation === null) {
@@ -471,9 +473,11 @@ class PrayerTimesApp {
         const debugBearing = document.getElementById('debug-bearing');
         const debugMode = document.getElementById('debug-mode');
         const debugOffset = document.getElementById('debug-offset');
+        const debugError = document.getElementById('debug-error');
         if (debugHeading) debugHeading.textContent = `${Math.round(this.deviceHeading)}°`;
         if (debugBearing) debugBearing.textContent = `${Math.round(this.qiblaBearing)}°`;
         if (debugOffset) debugOffset.textContent = `${Math.round(this.manualHeadingOffset)}°`;
+        if (debugError) debugError.textContent = `${Math.round(this.headingError)}°`;
         if (debugMode) {
             if (this.hasReceivedCompassReading) {
                 debugMode.textContent = 'Hybrid (Compass + Scroll Lock)';
@@ -482,6 +486,29 @@ class PrayerTimesApp {
             } else {
                 debugMode.textContent = 'Scroll Lock';
             }
+        }
+
+        this.updateQiblaLockFeedback();
+    }
+
+    updateQiblaLockFeedback() {
+        const compassShell = document.getElementById('qibla-compass-shell');
+        const lockStatus = document.getElementById('qibla-lock-status');
+        if (!compassShell || !lockStatus || this.headingError === null) return;
+
+        compassShell.classList.remove('near-target', 'on-target');
+
+        if (this.headingError <= 5) {
+            compassShell.classList.add('on-target');
+            lockStatus.textContent = `On target: ${Math.round(this.headingError)}° off`;
+            lockStatus.className = 'text-sm text-emerald-300 mt-2';
+        } else if (this.headingError <= 15) {
+            compassShell.classList.add('near-target');
+            lockStatus.textContent = `Very close: ${Math.round(this.headingError)}° off`;
+            lockStatus.className = 'text-sm text-emerald-300 mt-2';
+        } else {
+            lockStatus.textContent = `${Math.round(this.headingError)}° away from Qibla`;
+            lockStatus.className = 'text-sm text-slate-300 mt-2';
         }
     }
 

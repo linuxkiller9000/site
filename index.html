@@ -446,9 +446,9 @@
             
             <div class="flex flex-col lg:flex-row items-center justify-center gap-8">
                 <!-- Compass Container -->
-                <div class="relative">
+                <div id="qibla-compass-shell" class="relative qibla-compass-shell">
                     <!-- Main Compass Circle with Gradient -->
-                    <div class="relative w-64 h-64 rounded-full border-4 border-islamic-green/40 bg-gradient-to-br from-slate-800/40 via-slate-900/60 to-slate-800/40 shadow-2xl flex items-center justify-center">
+                    <div id="qibla-compass-circle" class="relative w-64 h-64 rounded-full border-4 border-islamic-green/40 bg-gradient-to-br from-slate-800/40 via-slate-900/60 to-slate-800/40 shadow-2xl flex items-center justify-center">
                         
                         <!-- Degree Markings (12 major, 48 minor) -->
                         <svg class="absolute inset-0 w-full h-full" viewBox="0 0 200 200" style="pointer-events: none;">
@@ -493,6 +493,7 @@
                     <div class="text-center mt-4">
                         <p class="text-sm text-slate-400 mb-1">Current Qibla Direction</p>
                         <p class="text-4xl font-bold text-islamic-green font-mono" id="qibla-angle">--°</p>
+                        <p class="text-sm text-emerald-300 mt-2" id="qibla-lock-status">Finding direction...</p>
                     </div>
                 </div>
 
@@ -514,7 +515,7 @@
                     <div class="bg-emerald-500/10 border border-emerald-500/30 rounded-2xl p-4">
                         <p class="text-sm text-emerald-300 font-arabic flex items-start">
                             <i class="fas fa-info-circle mr-3 mt-0.5 flex-shrink-0"></i>
-                            <span><strong>How to use:</strong> Hybrid mode is enabled. Rotate your phone for live compass, then fine-tune with wheel/drag inside this card. Scroll is locked while interacting here.</span>
+                            <span><strong>How to use:</strong> Hybrid mode is enabled. Rotate your phone for live compass, then fine-tune with wheel/drag inside this card. Scroll is locked while interacting here, and the compass zooms in when you get close to Qibla.</span>
                         </p>
                     </div>
 
@@ -529,6 +530,7 @@
                         <p>⚙️ Mode: <span id="debug-mode">Hybrid + Scroll Lock</span></p>
                         <p>📡 Device Heading: <span id="debug-heading">--°</span></p>
                         <p>🧭 Qibla Bearing: <span id="debug-bearing">--°</span></p>
+                        <p>🎯 Qibla Error: <span id="debug-error">--°</span></p>
                         <p>🎛️ Scroll Offset: <span id="debug-offset">0°</span></p>
                         <p class="text-slate-600 text-10px mt-2">Wheel/drag on this card adjusts heading and prevents page scroll.</p>
                     </div>
