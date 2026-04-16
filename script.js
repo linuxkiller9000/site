@@ -341,9 +341,10 @@ class PrayerTimesApp {
         // Android primary event: deviceorientationabsolute
         // Provides orientation relative to Earth's coordinate frame
         window.addEventListener('deviceorientationabsolute', (event) => {
-            this.hasAbsoluteOrientation = true;
             const heading = this.getDeviceHeadingFromEvent(event);
             if (heading !== null) {
+                // Mark absolute only when it actually yields valid heading data.
+                this.hasAbsoluteOrientation = true;
                 this.hasReceivedCompassReading = true;
                 this.isScrollCompassActive = false;
                 this.baseDeviceHeading = heading;
