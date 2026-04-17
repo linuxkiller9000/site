@@ -351,14 +351,10 @@ class PrayerTimesApp {
         this.isCompassTrackingActive = true;
         console.log('Compass tracking started');
 
-        // Android primary event: deviceorientationabsolute
-        // Provides orientation relative to Earth's coordinate frame
+        // Process any usable heading from absolute orientation events.
         window.addEventListener('deviceorientationabsolute', (event) => {
             const heading = this.getDeviceHeadingFromEvent(event);
             if (heading !== null) {
-                // Mark absolute only when it actually yields valid heading data.
-                this.hasAbsoluteOrientation = true;
-                this.lastAbsoluteEventAt = Date.now();
                 this.hasReceivedCompassReading = true;
                 this.isScrollCompassActive = false;
                 this.baseDeviceHeading = heading;
@@ -367,11 +363,8 @@ class PrayerTimesApp {
             }
         }, { passive: true });
 
-        // Fallback: deviceorientation
+        // Process any usable heading from regular orientation events.
         window.addEventListener('deviceorientation', (event) => {
-            // If absolute events are active, prefer them for a short window only.
-            if (this.hasAbsoluteOrientation && (Date.now() - this.lastAbsoluteEventAt) < 500) return;
-
             const heading = this.getDeviceHeadingFromEvent(event);
             if (heading !== null) {
                 this.hasReceivedCompassReading = true;
