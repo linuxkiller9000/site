@@ -10,29 +10,6 @@ class PrayerTimesApp {
         this.countdownInterval = null;
         this.currentTimeInterval = null;
         this.deferredPrompt = null; // For PWA install
-        this.qiblaBearing = 0; // Store Qibla direction for compass
-        this.deviceHeading = 0; // Current device heading from compass
-        this.baseDeviceHeading = 0; // Raw heading from sensor/scroll progress
-        this.manualHeadingOffset = 0; // Kept for debug compatibility; not used in real compass mode
-        this.magneticDeclination = 0; // Degrees to convert magnetic north -> true north
-        this.declinationSource = 'Fallback';
-        this.lastSensorHeading = null;
-        this.lastAbsoluteEventAt = 0;
-        this.compassBackendUrl = (typeof window !== 'undefined' && window.COMPASS_BACKEND_URL)
-            ? window.COMPASS_BACKEND_URL
-            : '/api/compass';
-        this.isBackendCompassEnabled = true;
-        this.isBackendSyncInFlight = false;
-        this.lastBackendSyncAt = 0;
-        this.backendSyncIntervalMs = 300;
-        this.isCompassTrackingActive = false;
-        this.hasAbsoluteOrientation = false;
-        this.hasReceivedCompassReading = false;
-        this.isScrollCompassActive = false;
-        this.platformType = this.detectPlatformType();
-        this.lastNeedleRotation = null;
-        this.lastCompassCircleRotation = null;
-        this.headingError = null; // Absolute angular distance to Qibla (degrees)
         this.settings = {
             timeFormat: localStorage.getItem('timeFormat') || '12',
             calculationMethod: localStorage.getItem('calculationMethod') || '5',
@@ -268,337 +245,6 @@ class PrayerTimesApp {
             }, 2000); // Show after 2 seconds for testing
         }
 
-        // Device Orientation Listener for Qibla Compass
-        // Updates needle rotation as user rotates their phone
-        this.setupDeviceOrientation();
-        this.setupScrollBasedCompass();
-    }
-
-    // Setup device orientation detection for dynamic Qibla compass
-    setupDeviceOrientation() {
-        if (this.platformType === 'linux-desktop') {
-            console.log('Linux desktop detected - using scroll compass mode');
-            return;
-        }
-
-        // Check for iOS 13+ which requires explicit permission
-        if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
-            // iOS 13+: requires user permission
-            const requestOrientationPermission = () => {
-                DeviceOrientationEvent.requestPermission()
-                    .then(permissionState => {
-                        if (permissionState === 'granted') {
-                            console.log('iOS compass permission granted');
-                            this.startCompassTracking();
-                        } else {
-                            console.log('iOS compass permission denied');
-                        }
-                    })
-                    .catch(error => console.log('iOS compass error:', error));
-            };
-
-            document.addEventListener('click', requestOrientationPermission, { once: true });
-            document.addEventListener('touchstart', requestOrientationPermission, { once: true, passive: true });
-        } else if (typeof DeviceOrientationEvent !== 'undefined') {
-            // Android: No permission needed, start immediately
-            console.log('Android detected - starting compass tracking without permission');
-            this.startCompassTracking();
-            this.setupAndroidCompassBootstrap();
-        } else {
-            console.warn('Device Orientation API not supported on this device');
-        }
-    }
-
-    setupAndroidCompassBootstrap() {
-        if (this.platformType !== 'android') return;
-
-        const retryStart = () => {
-            if (!this.isCompassTrackingActive) {
-                this.startCompassTracking();
-            }
-        };
-
-        document.addEventListener('touchstart', retryStart, { once: true, passive: true });
-        document.addEventListener('click', retryStart, { once: true, passive: true });
-        document.addEventListener('visibilitychange', () => {
-            if (document.visibilityState === 'visible') retryStart();
-        });
-    }
-
-    detectPlatformType() {
-        const ua = navigator.userAgent || '';
-        const uaDataPlatform = navigator.userAgentData?.platform || '';
-        const uaDataMobile = navigator.userAgentData?.mobile === true;
-        const platform = navigator.platform || '';
-        const combined = `${ua} ${uaDataPlatform} ${platform}`.toLowerCase();
-
-        const isAndroid = combined.includes('android');
-        const isIOS = /iphone|ipad|ipod/.test(combined);
-        const isLinux = combined.includes('linux');
-        const isMobile = /mobile|mobi|iphone|ipad|ipod|android/.test(combined);
-        const isTouchDevice = (navigator.maxTouchPoints || 0) > 0 || 'ontouchstart' in window;
-
-        if (isIOS) return 'ios';
-        if (isAndroid) return 'android';
-        if (isLinux && !isMobile && !uaDataMobile && !isTouchDevice) return 'linux-desktop';
-        return 'other';
-    }
-
-    // Start listening to device orientation changes
-    startCompassTracking() {
-        if (typeof DeviceOrientationEvent === 'undefined' || this.isCompassTrackingActive) return;
-
-        this.isCompassTrackingActive = true;
-        console.log('Compass tracking started');
-
-        // Process any usable heading from absolute orientation events.
-        window.addEventListener('deviceorientationabsolute', (event) => {
-            const heading = this.getDeviceHeadingFromEvent(event);
-            if (heading !== null) {
-                this.hasReceivedCompassReading = true;
-                this.isScrollCompassActive = false;
-                this.baseDeviceHeading = heading;
-                this.syncCompassWithBackend();
-                this.updateCompassNeedle();
-            }
-        }, { passive: true });
-
-        // Process any usable heading from regular orientation events.
-        window.addEventListener('deviceorientation', (event) => {
-            const heading = this.getDeviceHeadingFromEvent(event);
-            if (heading !== null) {
-                this.hasReceivedCompassReading = true;
-                this.isScrollCompassActive = false;
-                this.baseDeviceHeading = heading;
-                this.syncCompassWithBackend();
-                this.updateCompassNeedle();
-            }
-        }, { passive: true });
-    }
-
-    setupScrollBasedCompass() {
-        const qiblaSection = document.getElementById('qibla-section');
-        if (!qiblaSection) return;
-        if (this.platformType !== 'linux-desktop') return;
-
-        const updateFromScroll = () => {
-            if (this.hasReceivedCompassReading) return;
-
-            const viewportHeight = window.innerHeight || 1;
-            const rect = qiblaSection.getBoundingClientRect();
-            const progress = (viewportHeight - rect.top) / (viewportHeight + rect.height);
-            const clampedProgress = Math.max(0, Math.min(1, progress));
-
-            this.isScrollCompassActive = true;
-            this.baseDeviceHeading = clampedProgress * 360;
-            this.updateCompassNeedle();
-        };
-
-        window.addEventListener('scroll', updateFromScroll, { passive: true });
-        window.addEventListener('resize', updateFromScroll, { passive: true });
-        updateFromScroll();
-    }
-
-    normalizeDegrees(angle) {
-        return ((angle % 360) + 360) % 360;
-    }
-
-    getScreenOrientationAngle() {
-        if (window.screen?.orientation && typeof window.screen.orientation.angle === 'number') {
-            return this.normalizeDegrees(window.screen.orientation.angle);
-        }
-        if (typeof window.orientation === 'number') {
-            return this.normalizeDegrees(window.orientation);
-        }
-        return 0;
-    }
-
-    shortestAngleDelta(from, to) {
-        return ((to - from + 540) % 360) - 180;
-    }
-
-    smoothRotate(currentValue, targetValue) {
-        if (currentValue === null) return targetValue;
-        return currentValue + this.shortestAngleDelta(currentValue, targetValue);
-    }
-
-    async updateMagneticDeclination() {
-        if (!this.currentLocation || typeof this.currentLocation.lat !== 'number' || typeof this.currentLocation.lng !== 'number') {
-            return;
-        }
-
-        try {
-            const year = new Date().getUTCFullYear();
-            const url = `https://www.ngdc.noaa.gov/geomag-web/calculators/calculateDeclination?lat1=${this.currentLocation.lat}&lon1=${this.currentLocation.lng}&model=WMM&startYear=${year}&resultFormat=json`;
-            const response = await fetch(url);
-            if (!response.ok) throw new Error(`Declination API failed: ${response.status}`);
-
-            const data = await response.json();
-            const value = data?.result?.[0]?.declination;
-            if (typeof value === 'number' && Number.isFinite(value)) {
-                this.magneticDeclination = value;
-                this.declinationSource = 'NOAA WMM API';
-            } else {
-                throw new Error('Declination value missing');
-            }
-        } catch (error) {
-            console.warn('Using fallback declination = 0°:', error);
-            this.magneticDeclination = 0;
-            this.declinationSource = 'Fallback 0°';
-        }
-
-        this.updateCompassNeedle();
-    }
-
-    async syncCompassWithBackend(force = false) {
-        if (!this.isBackendCompassEnabled || this.isBackendSyncInFlight) return;
-        if (!this.currentLocation || typeof this.currentLocation.lat !== 'number' || typeof this.currentLocation.lng !== 'number') return;
-
-        const now = Date.now();
-        if (!force && (now - this.lastBackendSyncAt) < this.backendSyncIntervalMs) return;
-
-        this.isBackendSyncInFlight = true;
-        this.lastBackendSyncAt = now;
-
-        try {
-            const url = new URL(this.compassBackendUrl, window.location.href);
-            url.searchParams.set('lat', String(this.currentLocation.lat));
-            url.searchParams.set('lng', String(this.currentLocation.lng));
-            url.searchParams.set('heading', String(this.baseDeviceHeading));
-
-            const response = await fetch(url.toString());
-            if (!response.ok) throw new Error(`Compass backend failed: ${response.status}`);
-
-            const payload = await response.json();
-            if (!payload?.ok || !payload?.data) throw new Error('Invalid compass backend payload');
-
-            const data = payload.data;
-            if (typeof data.qibla_bearing === 'number') {
-                this.qiblaBearing = this.normalizeDegrees(data.qibla_bearing);
-            }
-            if (typeof data.declination === 'number') {
-                this.magneticDeclination = data.declination;
-            }
-            if (typeof data.declination_source === 'string') {
-                this.declinationSource = `${data.declination_source} (Python)`;
-            } else {
-                this.declinationSource = 'Python Compass Backend';
-            }
-        } catch (error) {
-            console.warn('Python compass backend unavailable, using local fallback:', error);
-            this.isBackendCompassEnabled = false;
-            this.updateMagneticDeclination();
-        } finally {
-            this.isBackendSyncInFlight = false;
-        }
-    }
-
-    // Convert device orientation event data into a compass heading in degrees
-    getDeviceHeadingFromEvent(event) {
-        // iOS-specific heading
-        if (event.webkitCompassHeading !== undefined && event.webkitCompassHeading !== null) {
-            const iosHeading = this.normalizeDegrees(event.webkitCompassHeading);
-            this.lastSensorHeading = iosHeading;
-            return iosHeading;
-        }
-
-        // If alpha is unavailable, we cannot determine heading
-        if (event.alpha === null || event.alpha === undefined) {
-            return null;
-        }
-
-        // Build both common candidates for non-iOS browsers.
-        // Different Android devices/browsers report alpha differently.
-        const alpha = this.normalizeDegrees(event.alpha);
-        const screenAngle = this.getScreenOrientationAngle();
-        const candidateA = this.normalizeDegrees(alpha + screenAngle);
-        const candidateB = this.normalizeDegrees((360 - alpha) + screenAngle);
-
-        let heading;
-        if (event.absolute) {
-            heading = candidateA;
-        } else if (this.lastSensorHeading === null) {
-            // Conservative first pick for relative Android readings.
-            heading = candidateB;
-        } else {
-            // Pick the candidate that is closest to previous heading to reduce flips.
-            const deltaA = Math.abs(this.shortestAngleDelta(this.lastSensorHeading, candidateA));
-            const deltaB = Math.abs(this.shortestAngleDelta(this.lastSensorHeading, candidateB));
-            heading = deltaA <= deltaB ? candidateA : candidateB;
-        }
-
-        this.lastSensorHeading = heading;
-        return heading;
-    }
-
-    // Update needle rotation based on device heading and Qibla bearing
-    updateCompassNeedle() {
-        const needle = document.getElementById('qibla-needle');
-        const compassCircle = document.getElementById('qibla-compass-circle');
-        if (!needle) return;
-
-        const magneticHeading = this.baseDeviceHeading;
-        const activeHeading = this.normalizeDegrees(magneticHeading + this.magneticDeclination);
-        this.deviceHeading = activeHeading;
-
-        // Move the middle rod directly with phone heading toward Qibla.
-        // (rod angle changes as user rotates device)
-        const targetNeedleRotation = this.normalizeDegrees(this.qiblaBearing - activeHeading);
-        this.headingError = Math.abs(this.shortestAngleDelta(activeHeading, this.qiblaBearing));
-
-        // Rotate using the shortest path to avoid big jumps near 0/360.
-        this.lastNeedleRotation = this.smoothRotate(this.lastNeedleRotation, targetNeedleRotation);
-
-        needle.style.transition = 'transform 0.15s ease-out';
-        needle.style.transform = `rotate(${this.lastNeedleRotation}deg)`;
-        if (compassCircle) {
-            compassCircle.style.transition = 'transform 0.15s ease-out';
-            compassCircle.style.transform = 'rotate(0deg)';
-        }
-
-        const debugHeading = document.getElementById('debug-heading');
-        const debugBearing = document.getElementById('debug-bearing');
-        const debugMode = document.getElementById('debug-mode');
-        const debugError = document.getElementById('debug-error');
-        const debugDeclination = document.getElementById('debug-declination');
-        const debugDeclinationSource = document.getElementById('debug-declination-source');
-        if (debugHeading) debugHeading.textContent = `${Math.round(this.deviceHeading)}°`;
-        if (debugBearing) debugBearing.textContent = `${Math.round(this.qiblaBearing)}°`;
-        if (debugError) debugError.textContent = `${Math.round(this.headingError)}°`;
-        if (debugDeclination) debugDeclination.textContent = `${this.magneticDeclination.toFixed(1)}°`;
-        if (debugDeclinationSource) debugDeclinationSource.textContent = this.declinationSource;
-        if (debugMode) {
-            if (this.hasReceivedCompassReading) {
-                debugMode.textContent = 'Real Compass';
-            } else if (this.platformType === 'linux-desktop') {
-                debugMode.textContent = 'Scroll Lock (Linux)';
-            } else {
-                debugMode.textContent = 'Waiting For Sensors';
-            }
-        }
-
-        this.updateQiblaLockFeedback();
-    }
-
-    updateQiblaLockFeedback() {
-        const compassShell = document.getElementById('qibla-compass-shell');
-        const lockStatus = document.getElementById('qibla-lock-status');
-        if (!compassShell || !lockStatus || this.headingError === null) return;
-
-        compassShell.classList.remove('near-target', 'on-target');
-
-        if (this.headingError <= 5) {
-            compassShell.classList.add('on-target');
-            lockStatus.textContent = `On target: ${Math.round(this.headingError)}° off`;
-            lockStatus.className = 'text-sm text-emerald-300 mt-2';
-        } else if (this.headingError <= 15) {
-            compassShell.classList.add('near-target');
-            lockStatus.textContent = `Very close: ${Math.round(this.headingError)}° off`;
-            lockStatus.className = 'text-sm text-emerald-300 mt-2';
-        } else {
-            lockStatus.textContent = `${Math.round(this.headingError)}° away from Qibla`;
-            lockStatus.className = 'text-sm text-slate-300 mt-2';
-        }
     }
 
     // PWA Install methods
@@ -628,108 +274,6 @@ class PrayerTimesApp {
             alert('Install prompt not available. In a real PWA, this would show the native install dialog.');
             this.hideInstallButton();
         }
-    }
-
-    // ========================================
-    // QIBLA DIRECTION CALCULATION
-    // ========================================
-    // Calculates the bearing (angle) from the user's location to Mecca (Kaaba)
-    // Using the great-circle bearing formula (inverse Haversine)
-    
-    calculateQibla() {
-        if (!this.currentLocation) return;
-
-        // Kaaba (Holy Mosque/Masjid al-Haram) coordinates in Mecca, Saudi Arabia
-        const kaaba = {
-            latitude: 21.4225,   // 21.4225° North
-            longitude: 39.8262   // 39.8262° East
-        };
-
-        // User's location coordinates (converted to radians for trigonometry)
-        const userLatRad = (this.currentLocation.lat * Math.PI) / 180;
-        const userLonRad = (this.currentLocation.lng * Math.PI) / 180;
-        const kaabaLatRad = (kaaba.latitude * Math.PI) / 180;
-        const kaabaLonRad = (kaaba.longitude * Math.PI) / 180;
-
-        // Calculate the difference in longitude
-        const deltaLon = kaabaLonRad - userLonRad;
-
-        // Great-circle bearing formula (atan2 method)
-        // This calculates the initial bearing/azimuth from user to Kaaba
-        const y = Math.sin(deltaLon) * Math.cos(kaabaLatRad);
-        const x = Math.cos(userLatRad) * Math.sin(kaabaLatRad) - 
-                  Math.sin(userLatRad) * Math.cos(kaabaLatRad) * Math.cos(deltaLon);
-        
-        let bearing = Math.atan2(y, x);
-
-        // Convert from radians to degrees
-        bearing = (bearing * 180) / Math.PI;
-
-        // Normalize bearing to 0-360° range
-        // (atan2 returns values in -180 to 180, so we add 360 and mod 360 to get 0-360)
-        bearing = (bearing + 360) % 360;
-
-        // Store the bearing for use by the compass
-        this.qiblaBearing = bearing;
-
-        // Update the UI with the calculated bearing
-        this.updateQiblaDisplay(bearing);
-        this.syncCompassWithBackend(true);
-    }
-
-    updateQiblaDisplay(bearing) {
-        // Round to nearest degree for display
-        const roundedBearing = Math.round(bearing);
-
-        // Update the angle display (e.g., "45°")
-        const angleElement = document.getElementById('qibla-angle');
-        if (angleElement) {
-            angleElement.textContent = `${roundedBearing}°`;
-        }
-
-        // For initial display, rotate needle to bearing (static display)
-        // Once device orientation is available, updateCompassNeedle will override this
-        const needle = document.getElementById('qibla-needle');
-        if (needle) {
-            this.lastNeedleRotation = this.normalizeDegrees(bearing);
-            needle.style.transition = 'transform 0.5s ease-in-out';
-            needle.style.transform = `rotate(${bearing}deg)`;
-        }
-
-        // Determine and display the cardinal/intercardinal direction name
-        let directionName = 'North';
-        if (bearing >= 337.5 || bearing < 22.5) directionName = 'North - شمال';
-        else if (bearing >= 22.5 && bearing < 67.5) directionName = 'Northeast - شمال شرق';
-        else if (bearing >= 67.5 && bearing < 112.5) directionName = 'East - شرق';
-        else if (bearing >= 112.5 && bearing < 157.5) directionName = 'Southeast - جنوب شرق';
-        else if (bearing >= 157.5 && bearing < 202.5) directionName = 'South - جنوب';
-        else if (bearing >= 202.5 && bearing < 247.5) directionName = 'Southwest - جنوب غرب';
-        else if (bearing >= 247.5 && bearing < 292.5) directionName = 'West - غرب';
-        else if (bearing >= 292.5 && bearing < 337.5) directionName = 'Northwest - شمال غرب';
-
-        // Update direction display
-        const directionElement = document.getElementById('qibla-direction');
-        if (directionElement) {
-            directionElement.textContent = directionName;
-        }
-
-        // Update location display - show which city the direction is calculated from
-        let locationText = 'Calculating location...';
-        if (this.currentLocation) {
-            if (this.currentLocation.city) {
-                locationText = `${this.currentLocation.city}${this.currentLocation.country ? ', ' + this.currentLocation.country : ''}`;
-            } else if (this.currentLocation.lat && this.currentLocation.lng) {
-                locationText = `${this.currentLocation.lat.toFixed(4)}°, ${this.currentLocation.lng.toFixed(4)}°`;
-            }
-        }
-        
-        const locationElement = document.getElementById('qibla-location');
-        if (locationElement) {
-            locationElement.textContent = locationText;
-        }
-
-        // Trigger compass needle update to enable dynamic tracking if device orientation is available
-        this.updateCompassNeedle();
     }
 
     hideLoading() {
@@ -806,8 +350,6 @@ class PrayerTimesApp {
 
             // Get location name from coordinates
             await this.reverseGeocode(position.coords.latitude, position.coords.longitude);
-            // Calculate Qibla direction
-            this.calculateQibla();
             await this.fetchPrayerTimes();
 
         } catch (error) {
@@ -842,7 +384,7 @@ class PrayerTimesApp {
             const city = data.city || data.locality || 'Unknown City';
             const country = data.countryName || 'Unknown Country';
 
-            // Update currentLocation with city name for Qibla display
+            // Update currentLocation with city name
             if (this.currentLocation) {
                 this.currentLocation.city = city;
                 this.currentLocation.country = country;
@@ -896,8 +438,6 @@ class PrayerTimesApp {
         // Update city suggestions for Egypt
         this.updateCitySuggestions('Egypt');
 
-        // Calculate Qibla direction
-        this.calculateQibla();
         this.fetchPrayerTimes();
     }
 
@@ -930,11 +470,8 @@ class PrayerTimesApp {
 
             document.getElementById('current-location').textContent = `${city}${country ? ', ' + country : ''}`;
 
-            // Get coordinates for Qibla calculation
+            // Get coordinates for better accuracy
             await this.geocodeCity(city, country);
-            
-            // Calculate Qibla direction
-            this.calculateQibla();
             await this.fetchPrayerTimes();
 
             // Success - hide location settings and show success message
