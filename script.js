@@ -548,22 +548,19 @@ class PrayerTimesApp {
         const activeHeading = this.normalizeDegrees(magneticHeading + this.magneticDeclination);
         this.deviceHeading = activeHeading;
 
-        // Real-compass behavior:
-        // 1) Compass card rotates with heading
-        // 2) Needle rotates to fixed Qibla bearing on the card
-        const targetNeedleRotation = this.normalizeDegrees(this.qiblaBearing);
-        const targetCircleRotation = this.normalizeDegrees(-activeHeading);
+        // Move the middle rod directly with phone heading toward Qibla.
+        // (rod angle changes as user rotates device)
+        const targetNeedleRotation = this.normalizeDegrees(this.qiblaBearing - activeHeading);
         this.headingError = Math.abs(this.shortestAngleDelta(activeHeading, this.qiblaBearing));
 
         // Rotate using the shortest path to avoid big jumps near 0/360.
         this.lastNeedleRotation = this.smoothRotate(this.lastNeedleRotation, targetNeedleRotation);
-        this.lastCompassCircleRotation = this.smoothRotate(this.lastCompassCircleRotation, targetCircleRotation);
 
         needle.style.transition = 'transform 0.15s ease-out';
         needle.style.transform = `rotate(${this.lastNeedleRotation}deg)`;
         if (compassCircle) {
             compassCircle.style.transition = 'transform 0.15s ease-out';
-            compassCircle.style.transform = `rotate(${this.lastCompassCircleRotation}deg)`;
+            compassCircle.style.transform = 'rotate(0deg)';
         }
 
         const debugHeading = document.getElementById('debug-heading');
