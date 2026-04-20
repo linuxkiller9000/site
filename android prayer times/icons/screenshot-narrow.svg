@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 390 844">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#022c22"/>
+      <stop offset="55%" stop-color="#064e3b"/>
+      <stop offset="100%" stop-color="#0f172a"/>
+    </linearGradient>
+    <linearGradient id="card" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#ffffff" stop-opacity="0.13"/>
+      <stop offset="100%" stop-color="#ffffff" stop-opacity="0.06"/>
+    </linearGradient>
+  </defs>
+  <rect width="390" height="844" fill="url(#bg)"/>
+  <circle cx="308" cy="122" r="54" fill="#10b981" fill-opacity="0.18"/>
+  <circle cx="85" cy="208" r="78" fill="#34d399" fill-opacity="0.08"/>
+  <rect x="31" y="62" width="328" height="116" rx="30" fill="url(#card)" stroke="#bbf7d0" stroke-opacity="0.15"/>
+  <rect x="31" y="204" width="328" height="170" rx="30" fill="url(#card)" stroke="#bbf7d0" stroke-opacity="0.12"/>
+  <rect x="31" y="398" width="156" height="130" rx="26" fill="url(#card)" stroke="#bbf7d0" stroke-opacity="0.12"/>
+  <rect x="203" y="398" width="156" height="130" rx="26" fill="url(#card)" stroke="#bbf7d0" stroke-opacity="0.12"/>
+  <rect x="31" y="548" width="328" height="112" rx="26" fill="url(#card)" stroke="#bbf7d0" stroke-opacity="0.12"/>
+  <rect x="51" y="727" width="288" height="64" rx="24" fill="#020617" fill-opacity="0.55" stroke="#ffffff" stroke-opacity="0.1"/>
+  <text x="195" y="116" fill="#d1fae5" font-size="26" font-family="Arial, sans-serif" text-anchor="middle" font-weight="700">PrayerTimes</text>
+  <text x="195" y="148" fill="#86efac" font-size="16" font-family="Arial, sans-serif" text-anchor="middle">Islamic prayer times and alerts</text>
+  <text x="61" y="248" fill="#e2e8f0" font-size="14" font-family="Arial, sans-serif">Next Prayer</text>
+  <text x="61" y="292" fill="#f8fafc" font-size="40" font-family="Arial, sans-serif" font-weight="700">Maghrib</text>
+  <text x="61" y="332" fill="#6ee7b7" font-size="20" font-family="Arial, sans-serif">00:47:12</text>
+  <text x="61" y="438" fill="#e2e8f0" font-size="14" font-family="Arial, sans-serif">Fajr</text>
+  <text x="61" y="484" fill="#f8fafc" font-size="28" font-family="Arial, sans-serif" font-weight="700">04:08</text>
+  <text x="223" y="438" fill="#e2e8f0" font-size="14" font-family="Arial, sans-serif">Isha</text>
+  <text x="223" y="484" fill="#f8fafc" font-size="28" font-family="Arial, sans-serif" font-weight="700">19:42</text>
+  <text x="61" y="592" fill="#e2e8f0" font-size="14" font-family="Arial, sans-serif">Alerts enabled</text>
+  <text x="61" y="632" fill="#bbf7d0" font-size="26" font-family="Arial, sans-serif" font-weight="700">Prayer reminders ready</text>
+  <circle cx="115" cy="759" r="8" fill="#10b981"/>
+  <circle cx="195" cy="759" r="8" fill="#475569"/>
+  <circle cx="275" cy="759" r="8" fill="#475569"/>
+</svg>
