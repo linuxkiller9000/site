@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">PrayerTimes</string>
+    <string name="location_permission_denied">Location permission is needed for GPS-based prayer times.</string>
+    <string name="external_browser_missing">No browser is available to open this link.</string>
+    <string name="widget_prayer_title">Prayer Times</string>
+    <string name="widget_current_label">Current prayer</string>
+    <string name="widget_up_next_label">Up next</string>
+    <string name="widget_status_live">Live</string>
+    <string name="widget_refresh">Refresh</string>
+    <string name="widget_open_app">Open app</string>
+    <string name="widget_current_time">At %s</string>
+    <string name="next_prayer">Next: %s</string>
+    <string name="last_update">Updated: %s</string>
+    <string name="prayer_fajr">Fajr</string>
+    <string name="prayer_sunrise">Sunrise</string>
+    <string name="prayer_dhuhr">Dhuhr</string>
+    <string name="prayer_asr">Asr</string>
+    <string name="prayer_maghrib">Maghrib</string>
+    <string name="prayer_isha">Isha</string>
+</resources>

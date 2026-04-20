@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="prayer_green">#2EC49C</color>
+    <color name="prayer_green_deep">#1A8E6C</color>
+    <color name="prayer_dark">#081C17</color>
+    <color name="widget_surface">#142923</color>
+    <color name="widget_surface_alt">#1B352E</color>
+    <color name="widget_text_primary">#F4FFF9</color>
+    <color name="widget_text_secondary">#B8D5CA</color>
+    <color name="widget_chip_bg">#26493E</color>
+    <color name="widget_refresh_bg">#214239</color>
+    <color name="black">#000000</color>
+</resources>
